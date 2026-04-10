@@ -34,7 +34,8 @@ namespace KeyboardLayoutSwitcher
             "наше", "наші", "цей", "ця", "це", "ці", "тут", "там", "так", "ні", "де", "що", "як", "коли",
             "хто", "чому", "для", "або", "але", "і", "й", "та", "не", "є", "було", "були", "то", "чи",
             "можливо", "у", "в", "з", "ну", "от", "тож", "бо", "до", "по", "за", "на", "об", "од", "із",
-            "зі", "ще", "те", "цю", "цим", "біля", "між", "через", "щоб", "ніби", "проте", "тому", "цю"
+            "зі", "ще", "те", "цю", "цим", "біля", "між", "через", "щоб", "ніби", "проте", "тому", "цю",
+            "гіт", "код", "баг", "тест"
         };
 
         private static readonly Dictionary<char, char> engToUkrMap = BuildMap();
@@ -68,8 +69,12 @@ namespace KeyboardLayoutSwitcher
             string convertedWord = ConvertWord(word, isEnglishLayout);
             int sourceMappedChars = CountMappedChars(word, isEnglishLayout ? engToUkrMap : ukrToEngMap);
 
+            if (MatchesFrequentWord(word, isEnglishLayout))
+            {
+                return false; // Already a valid word in current layout, don't convert it!
+            }
+
             if (MatchesFrequentWord(convertedWord, !isEnglishLayout) &&
-                !MatchesFrequentWord(word, isEnglishLayout) &&
                 sourceMappedChars >= Math.Max(1, word.Length - 1))
             {
                 return true;
