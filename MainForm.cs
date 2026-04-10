@@ -36,11 +36,13 @@ namespace KeyboardLayoutSwitcher
             // Initialize the global keyboard hook.
             keyboardHook = new KeyboardHook(settings);
 
-            // Configure tray icon. Use a fallback icon when project resources are missing.
-            notifyIcon.Icon = SystemIcons.Application;
+            // Configure tray icon. Extract from the compiled exe so we don't need dedicated external files.
+            Icon exeIcon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
+            this.Icon = exeIcon;
+            notifyIcon.Icon = exeIcon;
             notifyIcon.Visible = true;
             notifyIcon.ContextMenuStrip = contextMenuStrip;
-            cmbProcessMode.Items.AddRange(new object[] { "Вимкнено", "Білий список (тільки ці)", "Чорний список (усі крім цих)" });
+            cmbProcessMode.Items.AddRange(new object[] { "Вимкнено", "Працювати тільки у вибраних", "Працювати всюди, крім вибраних" });
 
             // Wire events.
             chkEnableSwitching.CheckedChanged += ChkEnableSwitching_CheckedChanged;
@@ -62,9 +64,42 @@ namespace KeyboardLayoutSwitcher
             this.FormClosing += MainForm_FormClosing;
 
             ApplyNativeDarkMode();
+            SetupTooltips();
 
             LoadSettingsIntoControls();
             ApplyRuntimeSettings();
+        }
+
+        private void SetupTooltips()
+        {
+            var tip = new ToolTip { AutoPopDelay = 15000, InitialDelay = 500, ReshowDelay = 100, ShowAlways = true };
+
+            AddInfoIcon(lblMinimumWordLength, numMinimumWordLength, tip, "Мінімальна кількість літер у слові, з якої починається перевірка.\r\nКоротші слова або окремі літери алгоритм проігнорує.");
+            AddInfoIcon(lblMinimumMappedPercent, numMinimumMappedPercent, tip, "Який відсоток літер у слові має 'співпадати' з іншою розкладкою,\r\nщоб програма вирішила змінити мову. (напр. 80% - це майже все слово)");
+            AddInfoIcon(lblMinimumVowelDelta, numMinimumVowelDelta, tip, "Різниця голосних. Алгоритм очікує, що у 'правильному' слові\r\nбуде нормальна кількість голосних, а у 'неправильному' (абракадабрі) - замало або забагато.");
+        }
+
+        private void AddInfoIcon(Control label, Control input, ToolTip tip, string text)
+        {
+            var icon = new Label
+            {
+                Text = "ⓘ", 
+                Font = new Font("Segoe UI Symbol", 11F, FontStyle.Regular),
+                AutoSize = true,
+                Cursor = Cursors.Help,
+                ForeColor = Color.FromArgb(120, 180, 255),
+                BackColor = Color.Transparent
+            };
+            
+            icon.Location = new Point(input.Left - 24, label.Top - 3);
+            label.Parent.Controls.Add(icon);
+            icon.BringToFront();
+
+            tip.SetToolTip(icon, text);
+            tip.SetToolTip(label, text);
+            
+            icon.MouseEnter += (s, e) => icon.ForeColor = Color.White;
+            icon.MouseLeave += (s, e) => icon.ForeColor = Color.FromArgb(120, 180, 255);
         }
 
         private void ApplyNativeDarkMode()
@@ -299,6 +334,7 @@ namespace KeyboardLayoutSwitcher
         }
     }
 }
+
 
 
 
