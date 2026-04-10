@@ -5,17 +5,53 @@ namespace KeyboardLayoutSwitcher
 {
     public static class LayoutSwitcher
     {
+        private const int PrimaryLanguageMask = 0x03FF;
+        private const int EnglishPrimaryLanguageId = 0x0009;
         private const uint KLF_ACTIVATE = 0x00000001;
         private const int WM_INPUTLANGCHANGEREQUEST = 0x0050;
 
+        [StructLayout(LayoutKind.Sequential)]
+        public struct GUITHREADINFO
+        {
+            public int cbSize;
+            public int flags;
+            public IntPtr hwndActive;
+            public IntPtr hwndFocus;
+            public IntPtr hwndCapture;
+            public IntPtr hwndMenuOwner;
+            public IntPtr hwndMoveSize;
+            public IntPtr hwndCaret;
+            public RECT rcCaret;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct RECT { public int left; public int top; public int right; public int bottom; }
+
+        [DllImport("user32.dll")]
+        private static extern bool GetGUIThreadInfo(uint idThread, ref GUITHREADINFO lpgui);
+
         public static bool IsCurrentKeyboardLayoutEnglish()
         {
-            IntPtr foregroundWindow = GetForegroundWindow();
-            uint threadId = GetWindowThreadProcessId(foregroundWindow, IntPtr.Zero);
-            IntPtr keyboardLayout = GetKeyboardLayout(threadId);
+            GUITHREADINFO gui = new GUITHREADINFO();
+            gui.cbSize = Marshal.SizeOf(gui);
+            IntPtr keyboardLayout;
+            
+            if (GetGUIThreadInfo(0, ref gui) && gui.hwndFocus != IntPtr.Zero)
+            {
+                uint threadId = GetWindowThreadProcessId(gui.hwndFocus, IntPtr.Zero);
+                keyboardLayout = GetKeyboardLayout(threadId);
+            }
+            else
+            {
+                IntPtr foregroundWindow = GetForegroundWindow();
+                uint threadId = GetWindowThreadProcessId(foregroundWindow, IntPtr.Zero);
+                keyboardLayout = GetKeyboardLayout(threadId);
+            }
 
             uint keyboardLayoutId = (uint)keyboardLayout & 0xFFFF;
-            return keyboardLayoutId == 0x0409; // 0x0409 - English (United States)
+            bool result = (keyboardLayoutId & PrimaryLanguageMask) == EnglishPrimaryLanguageId;
+            System.IO.File.AppendAllText(@"C:\Users\ommiv\AppData\Local\KeyboardLayoutSwitcher\trace.log", "HKL: " + keyboardLayout.ToString("X") + " | result: " + result + "\r\n");
+            return result;
         }
 
         public static void SwitchKeyboardLayout(ref bool isEnglishLayout)
@@ -53,3 +89,6 @@ namespace KeyboardLayoutSwitcher
         private static extern bool PostMessage(IntPtr hWnd, int Msg, IntPtr wParam, IntPtr lParam);
     }
 }
+
+
+
