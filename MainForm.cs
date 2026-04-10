@@ -1,11 +1,19 @@
 using System;
 using System.Drawing;
 using System.Windows.Forms;
+using System.Runtime.InteropServices;
 
 namespace KeyboardLayoutSwitcher
 {
     public partial class MainForm : Form
     {
+        [DllImport("dwmapi.dll")]
+        private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int attrValue, int attrSize);
+        private const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
+
+        [DllImport("uxtheme.dll", ExactSpelling = true, CharSet = CharSet.Unicode)]
+        public static extern int SetWindowTheme(IntPtr hwnd, string pszSubAppName, string pszSubIdList);
+
         private readonly AppSettings settings;
         private KeyboardHook keyboardHook;
         private bool isInitializing;
@@ -45,8 +53,71 @@ namespace KeyboardLayoutSwitcher
             notifyIcon.DoubleClick += NotifyIcon_DoubleClick;
             this.FormClosing += MainForm_FormClosing;
 
+            ApplyNativeDarkMode();
+
             LoadSettingsIntoControls();
             ApplyRuntimeSettings();
+        }
+
+        private void ApplyNativeDarkMode()
+        {
+            try
+            {
+                int useImmersiveDarkMode = 1;
+                DwmSetWindowAttribute(this.Handle, DWMWA_USE_IMMERSIVE_DARK_MODE, ref useImmersiveDarkMode, sizeof(int));
+            }
+            catch { }
+
+            this.BackColor = Color.FromArgb(32, 32, 32);
+            this.ForeColor = Color.White;
+            this.Font = new Font("Segoe UI", 9.5F);
+
+            // Important: Handle controls as soon as handle is created so theme applies correctly
+            this.Load += (s, e) =>
+            {
+                foreach (Control ctrl in this.Controls)
+                {
+                    StyleControlNativeDark(ctrl);
+                }
+            };
+            
+            if (contextMenuStrip != null)
+            {
+                contextMenuStrip.BackColor = Color.FromArgb(43, 43, 43);
+                contextMenuStrip.ForeColor = Color.White;
+                contextMenuStrip.ShowImageMargin = false;
+                contextMenuStrip.RenderMode = ToolStripRenderMode.System;
+            }
+        }
+
+        private void StyleControlNativeDark(Control control)
+        {
+            // Windows 11 Dark Mode styling via uxtheme
+            if (control is ComboBox || control is TextBox || control is NumericUpDown || control.GetType().Name == "TextBox")
+            {
+                SetWindowTheme(control.Handle, "DarkMode_CFD", null);
+                control.BackColor = Color.FromArgb(43, 43, 43);
+                control.ForeColor = Color.White;
+            }
+            else if (control is CheckBox || control is GroupBox)
+            {
+                SetWindowTheme(control.Handle, "DarkMode_Explorer", null);
+            }
+            else if (control is Button btn)
+            {
+                // Native native buttons in WinForms don't take pure DarkMode well,
+                // so FlatStyle with subtle Win11 button colors works best
+                btn.FlatStyle = FlatStyle.Flat;
+                btn.FlatAppearance.BorderColor = Color.FromArgb(80, 80, 80);
+                btn.FlatAppearance.BorderSize = 1;
+                btn.BackColor = Color.FromArgb(60, 60, 60);
+                btn.ForeColor = Color.White;
+            }
+
+            foreach (Control child in control.Controls)
+            {
+                StyleControlNativeDark(child);
+            }
         }
 
         private void ChkEnableSwitching_CheckedChanged(object sender, EventArgs e)
