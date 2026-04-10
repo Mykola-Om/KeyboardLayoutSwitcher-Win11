@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 
 namespace KeyboardLayoutSwitcher
@@ -72,6 +73,11 @@ namespace KeyboardLayoutSwitcher
             if (MatchesFrequentWord(word, isEnglishLayout))
             {
                 return false; // Already a valid word in current layout, don't convert it!
+            }
+
+            if (settings != null && settings.IgnoredWords != null && settings.IgnoredWords.Contains(word))
+            {
+                return false; // User explicitly ignored this word
             }
 
             if (MatchesFrequentWord(convertedWord, !isEnglishLayout) &&

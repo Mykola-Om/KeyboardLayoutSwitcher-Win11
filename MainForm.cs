@@ -2,6 +2,7 @@ using System;
 using System.Drawing;
 using System.Windows.Forms;
 using System.Runtime.InteropServices;
+using System.Linq;
 
 namespace KeyboardLayoutSwitcher
 {
@@ -39,17 +40,24 @@ namespace KeyboardLayoutSwitcher
             notifyIcon.Icon = SystemIcons.Application;
             notifyIcon.Visible = true;
             notifyIcon.ContextMenuStrip = contextMenuStrip;
-            cmbProcessMode.DataSource = Enum.GetValues(typeof(ProcessFilterMode));
+            cmbProcessMode.Items.AddRange(new object[] { "Вимкнено", "Білий список (тільки ці)", "Чорний список (усі крім цих)" });
 
             // Wire events.
             chkEnableSwitching.CheckedChanged += ChkEnableSwitching_CheckedChanged;
             chkStartWithWindows.CheckedChanged += SettingsControlChanged;
             cmbProcessMode.SelectedIndexChanged += SettingsControlChanged;
-            txtProcesses.TextChanged += SettingsControlChanged;
+            
+            
             numMinimumWordLength.ValueChanged += SettingsControlChanged;
             numMinimumMappedPercent.ValueChanged += SettingsControlChanged;
             numMinimumVowelDelta.ValueChanged += SettingsControlChanged;
             btnExit.Click += BtnExit_Click;
+            btnAddProcess.Click += BtnAddProcess_Click;
+            btnRemoveProcess.Click += BtnRemoveProcess_Click;
+            btnAddIgnoredWord.Click += BtnAddIgnoredWord_Click;
+            btnRemoveIgnoredWord.Click += BtnRemoveIgnoredWord_Click;
+            txtNewProcess.KeyDown += TxtNewProcess_KeyDown;
+            txtNewIgnoredWord.KeyDown += TxtNewIgnoredWord_KeyDown;
             notifyIcon.DoubleClick += NotifyIcon_DoubleClick;
             this.FormClosing += MainForm_FormClosing;
 
@@ -152,6 +160,43 @@ namespace KeyboardLayoutSwitcher
             ShowMainWindow();
         }
 
+                private void TxtNewProcess_KeyDown(object sender, KeyEventArgs e) { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; BtnAddProcess_Click(sender, e); } }
+        private void TxtNewIgnoredWord_KeyDown(object sender, KeyEventArgs e) { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; BtnAddIgnoredWord_Click(sender, e); } }
+
+        private void BtnAddProcess_Click(object sender, EventArgs e)
+        {
+            if (!string.IsNullOrWhiteSpace(txtNewProcess.Text) && !lstProcesses.Items.Contains(txtNewProcess.Text.Trim())) {
+                lstProcesses.Items.Add(txtNewProcess.Text.Trim());
+                txtNewProcess.Clear();
+                SettingsControlChanged(null, EventArgs.Empty);
+            }
+        }
+
+        private void BtnRemoveProcess_Click(object sender, EventArgs e)
+        {
+            if (lstProcesses.SelectedIndex >= 0) {
+                lstProcesses.Items.RemoveAt(lstProcesses.SelectedIndex);
+                SettingsControlChanged(null, EventArgs.Empty);
+            }
+        }
+
+        private void BtnAddIgnoredWord_Click(object sender, EventArgs e)
+        {
+            if (!string.IsNullOrWhiteSpace(txtNewIgnoredWord.Text) && !lstIgnoredWords.Items.Contains(txtNewIgnoredWord.Text.Trim())) {
+                lstIgnoredWords.Items.Add(txtNewIgnoredWord.Text.Trim());
+                txtNewIgnoredWord.Clear();
+                SettingsControlChanged(null, EventArgs.Empty);
+            }
+        }
+
+        private void BtnRemoveIgnoredWord_Click(object sender, EventArgs e)
+        {
+            if (lstIgnoredWords.SelectedIndex >= 0) {
+                lstIgnoredWords.Items.RemoveAt(lstIgnoredWords.SelectedIndex);
+                SettingsControlChanged(null, EventArgs.Empty);
+            }
+        }
+
         private void MainForm_FormClosing(object sender, FormClosingEventArgs e)
         {
             if (isExiting)
@@ -180,8 +225,15 @@ namespace KeyboardLayoutSwitcher
 
             chkEnableSwitching.Checked = settings.IsSwitchingEnabled;
             chkStartWithWindows.Checked = settings.StartWithWindows || StartupManager.IsEnabled();
-            cmbProcessMode.SelectedItem = settings.ProcessFilterMode;
-            txtProcesses.Text = settings.ProcessFilterText;
+            cmbProcessMode.SelectedIndex = (int)settings.ProcessFilterMode;
+                        lstProcesses.Items.Clear();
+            if (!string.IsNullOrWhiteSpace(settings.ProcessFilterText)) {
+                foreach (var p in settings.ProcessFilterText.Split(new[] { '\r', '\n', ',' }, StringSplitOptions.RemoveEmptyEntries)) lstProcesses.Items.Add(p.Trim());
+            }
+            lstIgnoredWords.Items.Clear();
+            if (!string.IsNullOrWhiteSpace(settings.IgnoredWordsText)) {
+                foreach (var w in settings.IgnoredWordsText.Split(new[] { '\r', '\n', ',' }, StringSplitOptions.RemoveEmptyEntries)) lstIgnoredWords.Items.Add(w.Trim());
+            }
             numMinimumWordLength.Value = Clamp(numMinimumWordLength, settings.MinimumWordLength);
             numMinimumMappedPercent.Value = Clamp(numMinimumMappedPercent, settings.MinimumMappedPercent);
             numMinimumVowelDelta.Value = Clamp(numMinimumVowelDelta, settings.MinimumVowelDelta);
@@ -194,8 +246,9 @@ namespace KeyboardLayoutSwitcher
         {
             settings.IsSwitchingEnabled = chkEnableSwitching.Checked;
             settings.StartWithWindows = chkStartWithWindows.Checked;
-            settings.ProcessFilterMode = (ProcessFilterMode)cmbProcessMode.SelectedItem;
-            settings.ProcessFilterText = txtProcesses.Text;
+            if (cmbProcessMode.SelectedIndex >= 0) settings.ProcessFilterMode = (ProcessFilterMode)cmbProcessMode.SelectedIndex;
+                        settings.ProcessFilterText = string.Join(Environment.NewLine, lstProcesses.Items.Cast<string>());
+            settings.IgnoredWordsText = string.Join(Environment.NewLine, lstIgnoredWords.Items.Cast<string>());
             settings.MinimumWordLength = (int)numMinimumWordLength.Value;
             settings.MinimumMappedPercent = (int)numMinimumMappedPercent.Value;
             settings.MinimumVowelDelta = (int)numMinimumVowelDelta.Value;
@@ -208,12 +261,12 @@ namespace KeyboardLayoutSwitcher
             if (settings.IsSwitchingEnabled)
             {
                 keyboardHook.Start();
-                lblStatus.Text = "Auto replace is enabled";
+                lblStatus.Text = "Автозаміна: УВІМКНЕНО";
             }
             else
             {
                 keyboardHook.Stop();
-                lblStatus.Text = "Auto replace is disabled";
+                lblStatus.Text = "Автозаміна: ВИМКНЕНО";
             }
 
             StartupManager.SetStartWithWindows(settings.StartWithWindows);
@@ -246,6 +299,8 @@ namespace KeyboardLayoutSwitcher
         }
     }
 }
+
+
 
 
 

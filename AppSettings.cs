@@ -15,6 +15,7 @@ namespace KeyboardLayoutSwitcher
     public sealed class AppSettings
     {
         private string processFilterText = string.Empty;
+        private string ignoredWordsText = string.Empty;
 
         public bool IsSwitchingEnabled { get; set; } = true;
 
@@ -26,6 +27,12 @@ namespace KeyboardLayoutSwitcher
         {
             get { return processFilterText; }
             set { processFilterText = value ?? string.Empty; }
+        }
+
+        public string IgnoredWordsText
+        {
+            get { return ignoredWordsText; }
+            set { ignoredWordsText = value ?? string.Empty; }
         }
 
         public int MinimumWordLength { get; set; } = 2;
@@ -43,6 +50,20 @@ namespace KeyboardLayoutSwitcher
                     .Split(new[] { '\r', '\n', ',', ';' }, StringSplitOptions.RemoveEmptyEntries)
                     .Select(NormalizeProcessName)
                     .Where(name => !string.IsNullOrWhiteSpace(name))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToArray();
+            }
+        }
+
+        [XmlIgnore]
+        public IReadOnlyCollection<string> IgnoredWords
+        {
+            get
+            {
+                return IgnoredWordsText
+                    .Split(new[] { '\r', '\n', ',', ';' }, StringSplitOptions.RemoveEmptyEntries)
+                    .Select(word => word.Trim())
+                    .Where(word => !string.IsNullOrWhiteSpace(word))
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .ToArray();
             }
