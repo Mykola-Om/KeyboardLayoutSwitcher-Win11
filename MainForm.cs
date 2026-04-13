@@ -254,6 +254,13 @@ namespace KeyboardLayoutSwitcher
             ExitApplication();
         }
 
+        private void menuItemPause_Click(object sender, EventArgs e)
+        {
+            settings.IsSwitchingEnabled = !settings.IsSwitchingEnabled;
+            ApplyRuntimeSettings();
+            SaveSettings();
+        }
+
         private void LoadSettingsIntoControls()
         {
             isInitializing = true;
@@ -297,12 +304,19 @@ namespace KeyboardLayoutSwitcher
             {
                 keyboardHook.Start();
                 lblStatus.Text = "Автозаміна: УВІМКНЕНО";
+                if (menuItemPause != null) menuItemPause.Text = "Пауза";
             }
             else
             {
                 keyboardHook.Stop();
                 lblStatus.Text = "Автозаміна: ВИМКНЕНО";
+                if (menuItemPause != null) menuItemPause.Text = "Відновити";
             }
+
+            bool oldInitializing = isInitializing;
+            isInitializing = true;
+            chkEnableSwitching.Checked = settings.IsSwitchingEnabled;
+            isInitializing = oldInitializing;
 
             StartupManager.SetStartWithWindows(settings.StartWithWindows);
         }

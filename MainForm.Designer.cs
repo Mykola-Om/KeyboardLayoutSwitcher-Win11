@@ -12,6 +12,8 @@ namespace KeyboardLayoutSwitcher
         private NotifyIcon notifyIcon;
         private ContextMenuStrip contextMenuStrip;
         private ToolStripMenuItem menuItemOpen;
+        private ToolStripMenuItem menuItemPause;
+        private ToolStripSeparator toolStripSeparator1;
         private ToolStripMenuItem menuItemExit;
         private GroupBox grpHeuristic;
         private Label lblMinimumWordLength;
@@ -55,6 +57,8 @@ namespace KeyboardLayoutSwitcher
             this.notifyIcon = new System.Windows.Forms.NotifyIcon(this.components);
             this.contextMenuStrip = new System.Windows.Forms.ContextMenuStrip(this.components);
             this.menuItemOpen = new System.Windows.Forms.ToolStripMenuItem();
+            this.menuItemPause = new System.Windows.Forms.ToolStripMenuItem();
+            this.toolStripSeparator1 = new System.Windows.Forms.ToolStripSeparator();
             this.menuItemExit = new System.Windows.Forms.ToolStripMenuItem();
             
             this.grpHeuristic = new System.Windows.Forms.GroupBox();
@@ -123,15 +127,27 @@ namespace KeyboardLayoutSwitcher
             // contextMenuStrip
             this.contextMenuStrip.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.menuItemOpen,
+            this.menuItemPause,
+            this.toolStripSeparator1,
             this.menuItemExit});
             this.contextMenuStrip.Name = "contextMenuStrip";
-            this.contextMenuStrip.Size = new System.Drawing.Size(161, 48);
+            this.contextMenuStrip.Size = new System.Drawing.Size(161, 70);
 
             // menuItemOpen
             this.menuItemOpen.Name = "menuItemOpen";
             this.menuItemOpen.Size = new System.Drawing.Size(160, 22);
             this.menuItemOpen.Text = "Налаштування";
             this.menuItemOpen.Click += new System.EventHandler(this.menuItemOpen_Click);
+
+            // menuItemPause
+            this.menuItemPause.Name = "menuItemPause";
+            this.menuItemPause.Size = new System.Drawing.Size(160, 22);
+            this.menuItemPause.Text = "Пауза";
+            this.menuItemPause.Click += new System.EventHandler(this.menuItemPause_Click);
+
+            // toolStripSeparator1
+            this.toolStripSeparator1.Name = "toolStripSeparator1";
+            this.toolStripSeparator1.Size = new System.Drawing.Size(157, 6);
 
             // menuItemExit
             this.menuItemExit.Name = "menuItemExit";
