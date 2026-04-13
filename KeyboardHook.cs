@@ -26,6 +26,7 @@ namespace KeyboardLayoutSwitcher
         private StringBuilder currentWord = new StringBuilder();
         private bool isReplacing;
         private IntPtr lastForegroundWindow = IntPtr.Zero;
+        private bool? lastWordIsEnglish = null;
 
         public KeyboardHook(AppSettings settings)
         {
@@ -80,6 +81,7 @@ namespace KeyboardLayoutSwitcher
                 {
                     lastForegroundWindow = foregroundWindow;
                     currentWord.Clear();
+                    lastWordIsEnglish = null;
                 }
 
                 if (!settings.IsProcessAllowed(GetProcessName(foregroundWindow)))
@@ -186,10 +188,13 @@ namespace KeyboardLayoutSwitcher
             }
 
             string word = currentWord.ToString();
-            Trace("Try replace | word=" + word + " | english=" + currentLayoutIsEnglish);
-            if (!KeyMapper.IsWrongLayout(word, currentLayoutIsEnglish, settings))
+            Trace("Try replace | word=" + word + " | english=" + currentLayoutIsEnglish + " | context=" + lastWordIsEnglish);
+            
+            if (!KeyMapper.IsWrongLayout(word, currentLayoutIsEnglish, settings, lastWordIsEnglish))
             {
                 Trace("Rejected by heuristic | word=" + word);
+                // Update context even if not switching, as we've confirmed the language
+                if (word.Length >= 2) lastWordIsEnglish = currentLayoutIsEnglish;
                 return false;
             }
 
@@ -198,6 +203,7 @@ namespace KeyboardLayoutSwitcher
 
             bool oldLayout = currentLayoutIsEnglish;
             currentLayoutIsEnglish = !currentLayoutIsEnglish;
+            lastWordIsEnglish = currentLayoutIsEnglish;
 
             QueueReplacement(word.Length, correctedWord, boundaryChar, oldLayout);
             currentWord.Clear();
