@@ -30,7 +30,8 @@ namespace KeyboardLayoutSwitcher
 
         private static readonly HashSet<string> commonTlds = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
-            ".com", ".net", ".org", ".edu", ".gov", ".ua", ".io", ".me", ".info", ".biz", ".dev", ".app", ".ai", ".uk", ".ru"
+            ".com", ".net", ".org", ".edu", ".gov", ".ua", ".io", ".me", ".info", ".biz", ".dev", ".app", ".ai", ".uk", ".ru",
+            ".env", ".json", ".yml", ".yaml", ".config", ".xml", ".cs", ".cpp", ".py", ".js", ".ts"
         };
 
         private static readonly Dictionary<char, char> engToUkrMap = BuildMap();
@@ -128,6 +129,9 @@ namespace KeyboardLayoutSwitcher
         {
             if (string.IsNullOrEmpty(word)) return false;
 
+            // Specific case for 'env' (as command or filename prefix)
+            if (word.Equals("env", StringComparison.OrdinalIgnoreCase)) return true;
+
             // Simple URL/Email patterns
             if (word.Contains("://") || word.StartsWith("www.") || word.Contains("@")) return true;
 
@@ -138,6 +142,14 @@ namespace KeyboardLayoutSwitcher
             foreach (var tld in commonTlds)
             {
                 if (word.EndsWith(tld, StringComparison.OrdinalIgnoreCase)) return true;
+            }
+
+            // ALL_CAPS or SHOUTING_CASE detection (common for constants/env vars)
+            if (word.Length >= 3 && word.All(c => (char.IsUpper(c) || c == '_' || char.IsDigit(c)) && !char.IsLower(c)))
+            {
+                // Ensure it's not just a short Ukrainian word that happens to look like caps
+                // (Most Ukrainian letters have multi-case, but let's be safe)
+                return true;
             }
 
             // CamelCase detection: at least one capital letter NOT at the beginning
@@ -209,19 +221,25 @@ namespace KeyboardLayoutSwitcher
 
         public static bool IsLayoutWordCharacter(char character, bool isEnglishLayout)
         {
-            if (char.IsLetter(character))
+            if (char.IsLetter(character) || char.IsDigit(character))
+            {
+                return true;
+            }
+
+            // Technical symbols that should be part of a "word" context for heuristics
+            if ("_./\\:@#-".Contains(character))
             {
                 return true;
             }
 
             if (isEnglishLayout && engToUkrMap.TryGetValue(character, out char mappedUkrainianCharacter))
             {
-                return char.IsLetter(mappedUkrainianCharacter);
+                return char.IsLetterOrDigit(mappedUkrainianCharacter) || "_./\\:@#-".Contains(mappedUkrainianCharacter);
             }
 
             if (!isEnglishLayout && ukrToEngMap.TryGetValue(character, out char mappedEnglishCharacter))
             {
-                return char.IsLetter(mappedEnglishCharacter);
+                return char.IsLetterOrDigit(mappedEnglishCharacter) || "_./\\:@#-".Contains(mappedEnglishCharacter);
             }
 
             return false;

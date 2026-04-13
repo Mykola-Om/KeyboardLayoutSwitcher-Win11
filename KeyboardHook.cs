@@ -127,7 +127,7 @@ namespace KeyboardLayoutSwitcher
                     currentWord.Append(ch);
                     Trace("Append letter: " + ch + " | word=" + currentWord);
                 }
-                else if (char.IsWhiteSpace(ch) || char.IsPunctuation(ch))
+                else if (char.IsWhiteSpace(ch) || (char.IsPunctuation(ch) && !KeyMapper.IsLayoutWordCharacter(ch, isEnglishLayout)))
                 {
                     Trace("Boundary: " + ((int)ch) + " | word=" + currentWord);
                     if (TryReplaceCurrentWordAtBoundary(ch, ref isEnglishLayout))
