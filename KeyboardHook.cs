@@ -15,7 +15,6 @@ namespace KeyboardLayoutSwitcher
         private static readonly Dictionary<int, char> englishUpperMap = CreateEnglishUpperMap();
         private static readonly Dictionary<int, char> ukrainianLowerMap = CreateUkrainianLowerMap();
         private static readonly Dictionary<int, char> ukrainianUpperMap = CreateUkrainianUpperMap();
-        private static readonly Dictionary<char, Tuple<ushort, bool>> charToVirtualKeyMap = BuildCharToVirtualKeyMap();
 
         private readonly AppSettings settings;
         private readonly SynchronizationContext synchronizationContext;
@@ -279,110 +278,6 @@ namespace KeyboardLayoutSwitcher
             {
             }
         }
-
-        private static void SendBoundary(char boundaryChar)
-        {
-            if (boundaryChar == '\r' || boundaryChar == '\n')
-            {
-                SendVirtualKey(VK_RETURN);
-                return;
-            }
-
-            if (boundaryChar == '\t')
-            {
-                SendVirtualKey(VK_TAB);
-                return;
-            }
-
-            if (boundaryChar == ' ')
-            {
-                // Force key release in case they are still holding it physically
-                INPUT[] spaceUp = new INPUT[] { CreateVirtualKeyInput(VK_SPACE, KEYEVENTF_KEYUP) };
-                SendInput((uint)spaceUp.Length, spaceUp, Marshal.SizeOf(typeof(INPUT)));
-                
-                SendVirtualKey(VK_SPACE);
-                return;
-            }
-
-            SendVirtualKeyText(boundaryChar.ToString());
-        }
-
-        private static void SendBackspaces(int count)
-        {
-            for (int index = 0; index < count; index++)
-            {
-                SendVirtualKey(VK_BACK);
-            }
-        }
-
-        private static void SendUnicodeText(string text)
-        {
-            if (string.IsNullOrEmpty(text))
-            {
-                return;
-            }
-
-            INPUT[] inputs = new INPUT[text.Length * 2];
-            int inputIndex = 0;
-
-            foreach (char character in text)
-            {
-                inputs[inputIndex++] = CreateUnicodeInput(character, KEYEVENTF_UNICODE);
-                inputs[inputIndex++] = CreateUnicodeInput(character, KEYEVENTF_KEYUP | KEYEVENTF_UNICODE);
-            }
-
-            SendInput((uint)inputs.Length, inputs, Marshal.SizeOf(typeof(INPUT)));
-        }
-
-        private static void SendVirtualKey(ushort virtualKey)
-        {
-            INPUT[] inputs = new INPUT[]
-            {
-                CreateVirtualKeyInput(virtualKey, 0),
-                CreateVirtualKeyInput(virtualKey, KEYEVENTF_KEYUP)
-            };
-
-            SendInput((uint)inputs.Length, inputs, Marshal.SizeOf(typeof(INPUT)));
-        }
-
-        private static INPUT CreateVirtualKeyInput(ushort virtualKey, uint flags)
-        {
-            return new INPUT
-            {
-                type = INPUT_KEYBOARD,
-                U = new InputUnion
-                {
-                    ki = new KEYBDINPUT
-                    {
-                        wVk = virtualKey,
-                        wScan = 0,
-                        dwFlags = flags,
-                        dwExtraInfo = IntPtr.Zero,
-                        time = 0
-                    }
-                }
-            };
-        }
-
-        private static INPUT CreateUnicodeInput(char character, uint flags)
-        {
-            return new INPUT
-            {
-                type = INPUT_KEYBOARD,
-                U = new InputUnion
-                {
-                    ki = new KEYBDINPUT
-                    {
-                        wVk = 0,
-                        wScan = character,
-                        dwFlags = flags,
-                        dwExtraInfo = IntPtr.Zero,
-                        time = 0
-                    }
-                }
-            };
-        }
-
         private static bool IsModifierKey(int vkCode)
         {
             return vkCode == VK_SHIFT ||
@@ -460,14 +355,10 @@ namespace KeyboardLayoutSwitcher
         private delegate IntPtr LowLevelKeyboardProc(int nCode, IntPtr wParam, IntPtr lParam);
 
         private const int WH_KEYBOARD_LL = 13;
-        private const int INPUT_KEYBOARD = 1;
-        private const int WM_KEYDOWN = 0x0100;
+private const int WM_KEYDOWN = 0x0100;
         private const int WM_SYSKEYDOWN = 0x0104;
         private const uint LLKHF_INJECTED = 0x00000010;
-        private const uint KEYEVENTF_KEYUP = 0x0002;
-        private const uint KEYEVENTF_UNICODE = 0x0004;
-        private const uint KEYEVENTF_SCANCODE = 0x0008;
-        private const int VK_BACK = 0x08;
+private const int VK_BACK = 0x08;
         private const int VK_TAB = 0x09;
         private const int VK_RETURN = 0x0D;
         private const int VK_SPACE = 0x20;
@@ -492,15 +383,10 @@ namespace KeyboardLayoutSwitcher
         private const int VK_LMENU = 0xA4;
         private const int VK_RMENU = 0xA5;
         private const int VK_OEM_1 = 0xBA;
-        private const int VK_OEM_PLUS = 0xBB;
-        private const int VK_OEM_COMMA = 0xBC;
-        private const int VK_OEM_MINUS = 0xBD;
-        private const int VK_OEM_PERIOD = 0xBE;
-        private const int VK_OEM_2 = 0xBF;
-        private const int VK_OEM_3 = 0xC0;
-        private const int VK_OEM_4 = 0xDB;
-        private const int VK_OEM_5 = 0xDC;
-        private const int VK_OEM_6 = 0xDD;
+private const int VK_OEM_COMMA = 0xBC;
+private const int VK_OEM_PERIOD = 0xBE;
+private const int VK_OEM_4 = 0xDB;
+private const int VK_OEM_6 = 0xDD;
         private const int VK_OEM_7 = 0xDE;
 
         [StructLayout(LayoutKind.Sequential)]
@@ -512,54 +398,6 @@ namespace KeyboardLayoutSwitcher
             public uint time;
             public UIntPtr dwExtraInfo;
         }
-
-        [StructLayout(LayoutKind.Sequential)]
-        private struct MOUSEINPUT
-        {
-            public int dx;
-            public int dy;
-            public uint mouseData;
-            public uint dwFlags;
-            public uint time;
-            public IntPtr dwExtraInfo;
-        }
-
-        [StructLayout(LayoutKind.Sequential)]
-        private struct HARDWAREINPUT
-        {
-            public uint uMsg;
-            public ushort wParamL;
-            public ushort wParamH;
-        }
-
-        [StructLayout(LayoutKind.Sequential)]
-        private struct INPUT
-        {
-            public int type;
-            public InputUnion U;
-        }
-
-        [StructLayout(LayoutKind.Explicit)]
-        private struct InputUnion
-        {
-            [FieldOffset(0)]
-            public MOUSEINPUT mi;
-            [FieldOffset(0)]
-            public KEYBDINPUT ki;
-            [FieldOffset(0)]
-            public HARDWAREINPUT hi;
-        }
-
-        [StructLayout(LayoutKind.Sequential)]
-        private struct KEYBDINPUT
-        {
-            public ushort wVk;
-            public ushort wScan;
-            public uint dwFlags;
-            public uint time;
-            public IntPtr dwExtraInfo;
-        }
-
         [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
         private static extern IntPtr SetWindowsHookEx(int idHook,
             LowLevelKeyboardProc lpfn, IntPtr hMod, uint dwThreadId);
@@ -570,11 +408,6 @@ namespace KeyboardLayoutSwitcher
         [DllImport("user32.dll", SetLastError = true)]
         private static extern IntPtr CallNextHookEx(IntPtr hhk,
             int nCode, IntPtr wParam, IntPtr lParam);
-
-        [DllImport("user32.dll", SetLastError = true)]
-        private static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
-        [DllImport("user32.dll", CharSet = CharSet.Auto)]
-        private static extern uint MapVirtualKey(uint uCode, uint uMapType);
         [DllImport("user32.dll")]
         private static extern short GetKeyState(int nVirtKey);
 
@@ -654,51 +487,8 @@ namespace KeyboardLayoutSwitcher
                 [VK_OEM_COMMA] = 'Б', [VK_OEM_PERIOD] = 'Ю', [VK_SPACE] = ' '
             };
         }
-
-        private static Dictionary<char, Tuple<ushort, bool>> BuildCharToVirtualKeyMap()
-        {
-            var map = new Dictionary<char, Tuple<ushort, bool>>();
-            foreach (var kvp in englishLowerMap) map[kvp.Value] = Tuple.Create((ushort)kvp.Key, false);
-            foreach (var kvp in englishUpperMap) map[kvp.Value] = Tuple.Create((ushort)kvp.Key, true);
-            foreach (var kvp in ukrainianLowerMap) map[kvp.Value] = Tuple.Create((ushort)kvp.Key, false);
-            foreach (var kvp in ukrainianUpperMap) map[kvp.Value] = Tuple.Create((ushort)kvp.Key, true);
-            return map;
-        }
-
-        private static void SendVirtualKeyText(string text)
-        {
-            if (string.IsNullOrEmpty(text))
-            {
-                return;
-            }
-
-            foreach (char ch in text)
-            {
-                if (charToVirtualKeyMap.TryGetValue(ch, out var vkInfo))
-                {
-                    ushort vk = vkInfo.Item1;
-                    bool shift = vkInfo.Item2;
-
-                    if (shift)
-                    {
-                        INPUT[] shiftDown = new INPUT[] { CreateVirtualKeyInput(VK_SHIFT, 0) };
-                        SendInput((uint)shiftDown.Length, shiftDown, Marshal.SizeOf(typeof(INPUT)));
-                    }
-
-                    SendVirtualKey(vk);
-
-                    if (shift)
-                    {
-                        INPUT[] shiftUp = new INPUT[] { CreateVirtualKeyInput(VK_SHIFT, KEYEVENTF_KEYUP) };
-                        SendInput((uint)shiftUp.Length, shiftUp, Marshal.SizeOf(typeof(INPUT)));
-                    }
-                }
-                else
-                {
-                    SendUnicodeText(ch.ToString());
-                }
-            }
-        }
     }
 }
+
+
 
