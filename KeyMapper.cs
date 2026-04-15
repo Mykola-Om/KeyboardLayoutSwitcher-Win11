@@ -100,6 +100,9 @@ namespace KeyboardLayoutSwitcher
         {
             LoadDictionaryFile("Dictionaries\\en.txt", commonEnglishWords);
             LoadDictionaryFile("Dictionaries\\uk.txt", commonUkrainianWords);
+            
+            // Завантаження технічних слів, які зазвичай вводяться на англійській розкладці
+            LoadDictionaryFile("Dictionaries\\tech.txt", commonEnglishWords);
         }
 
         private static void LoadDictionaryFile(string relativePath, HashSet<string> targetSet)
