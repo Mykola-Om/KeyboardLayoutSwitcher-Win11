@@ -131,7 +131,7 @@ namespace KeyboardLayoutSwitcher
             this.toolStripSeparator1,
             this.menuItemExit});
             this.contextMenuStrip.Name = "contextMenuStrip";
-            this.contextMenuStrip.Size = new System.Drawing.Size(161, 70);
+            this.contextMenuStrip.Size = new System.Drawing.Size(161, 76);
 
             // menuItemOpen
             this.menuItemOpen.Name = "menuItemOpen";
