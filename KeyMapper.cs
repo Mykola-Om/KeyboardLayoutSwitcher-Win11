@@ -128,11 +128,78 @@ namespace KeyboardLayoutSwitcher
             int minimumVowelDelta = settings?.MinimumVowelDelta ?? 0;
             int mappedThreshold = (int)Math.Ceiling(word.Length * minimumMappedPercent / 100.0);
 
-            // Consider layout as wrong only when:
-            // 1) almost all characters can be keyboard-mapped to the opposite layout,
-            // 2) converted word looks more pronounceable than the source word.
-            return sourceMappedChars >= mappedThreshold &&
-                   convertedVowelCount - sourceVowelCount >= minimumVowelDelta;
+            if (sourceMappedChars < mappedThreshold)
+            {
+                return false;
+            }
+
+            int sourcePenalty = CalculateUnnaturalnessScore(word, isEnglishLayout);
+            int convertedPenalty = CalculateUnnaturalnessScore(convertedWord, !isEnglishLayout);
+
+            // Якщо штрафи відрізняються, обираємо варіант з меншим штрафом (менш "неприродний")
+            if (sourcePenalty > convertedPenalty)
+            {
+                return true;
+            }
+            else if (sourcePenalty < convertedPenalty)
+            {
+                return false;
+            }
+
+            // Якщо штрафи однакові, повертаємось до класичного підрахунку голосних як "тайбрейкера"
+            return convertedVowelCount - sourceVowelCount >= minimumVowelDelta;
+        }
+
+        private static int CalculateUnnaturalnessScore(string text, bool isEnglishLayout)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return 0;
+            
+            string lowerText = text.ToLowerInvariant();
+            int score = 0;
+            int consecutiveConsonants = 0;
+            int vowelCount = 0;
+            
+            HashSet<char> vowels = isEnglishLayout ? englishVowels : ukrainianVowels;
+            
+            for (int i = 0; i < lowerText.Length; i++)
+            {
+                char c = lowerText[i];
+                if (char.IsLetter(c))
+                {
+                    if (vowels.Contains(c))
+                    {
+                        vowelCount++;
+                        consecutiveConsonants = 0;
+                    }
+                    else
+                    {
+                        consecutiveConsonants++;
+                        if (consecutiveConsonants == 4) score += 40;
+                        else if (consecutiveConsonants > 4) score += 20;
+                    }
+                }
+            }
+
+            // Штраф за відсутність голосних у довгому слові
+            if (lowerText.Length >= 3 && vowelCount == 0)
+            {
+                score += 30;
+            }
+
+            // Штрафи за неприродні або заборонені комбінації
+            if (!isEnglishLayout) // Українська
+            {
+                if (lowerText.StartsWith("ь") || lowerText.StartsWith("и")) score += 50;
+                if (lowerText.Contains("ьь") || lowerText.Contains("йй") || lowerText.Contains("щщ")) score += 50;
+                if (lowerText.Contains("ьы") || lowerText.Contains("ы") || lowerText.Contains("э") || lowerText.Contains("ё") || lowerText.Contains("ъ")) score += 50; // російські літери
+            }
+            else // Англійська
+            {
+                if (lowerText.Contains("zx") || lowerText.Contains("jq") || lowerText.Contains("pq") || lowerText.Contains("qx") || lowerText.Contains("xz") || lowerText.Contains("qv")) score += 50;
+                if (lowerText.StartsWith("x") && lowerText.Length > 2 && !vowels.Contains(lowerText[1])) score += 30;
+            }
+
+            return score;
         }
 
         public static bool IsLayoutWordCharacter(char character, bool isEnglishLayout)
