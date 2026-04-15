@@ -50,9 +50,12 @@ namespace KeyboardLayoutSwitcher
             cmbProcessMode.SelectedIndexChanged += SettingsControlChanged;
             
             
-            numMinimumWordLength.ValueChanged += SettingsControlChanged;
             numMinimumMappedPercent.ValueChanged += SettingsControlChanged;
-            numMinimumVowelDelta.ValueChanged += SettingsControlChanged;
+            
+            // Завдяки гібридному словнику та новій системі штрафів налаштування чутливості 
+            // більше не потрібні користувачу, вони надійно працюють під капотом зі стандартними значеннями (80%).
+            grpHeuristic.Visible = false;
+            
             btnExit.Click += BtnExit_Click;
             btnAddProcess.Click += BtnAddProcess_Click;
             btnRemoveProcess.Click += BtnRemoveProcess_Click;

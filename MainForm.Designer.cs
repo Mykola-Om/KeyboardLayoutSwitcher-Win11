@@ -118,7 +118,7 @@ namespace KeyboardLayoutSwitcher
             this.lblStatus.Text = "Автозаміна: увімкнено";
 
             // btnExit
-            this.btnExit.Location = new System.Drawing.Point(400, 500);
+            this.btnExit.Location = new System.Drawing.Point(400, 381);
             this.btnExit.Name = "btnExit";
             this.btnExit.Size = new System.Drawing.Size(120, 30);
             this.btnExit.TabIndex = 6;
@@ -168,6 +168,7 @@ namespace KeyboardLayoutSwitcher
             this.grpHeuristic.Controls.Add(this.numMinimumVowelDelta);
             this.grpHeuristic.Location = new System.Drawing.Point(12, 95);
             this.grpHeuristic.Name = "grpHeuristic";
+            this.grpHeuristic.Visible = false;
             this.grpHeuristic.Size = new System.Drawing.Size(508, 108);
             this.grpHeuristic.TabIndex = 3;
             this.grpHeuristic.TabStop = false;
@@ -229,7 +230,7 @@ namespace KeyboardLayoutSwitcher
             this.grpProcesses.Controls.Add(this.txtNewProcess);
             this.grpProcesses.Controls.Add(this.btnAddProcess);
             this.grpProcesses.Controls.Add(this.btnRemoveProcess);
-            this.grpProcesses.Location = new System.Drawing.Point(12, 214);
+            this.grpProcesses.Location = new System.Drawing.Point(12, 95);
             this.grpProcesses.Name = "grpProcesses";
             this.grpProcesses.Size = new System.Drawing.Size(508, 140);
             this.grpProcesses.TabIndex = 4;
@@ -286,7 +287,7 @@ namespace KeyboardLayoutSwitcher
             this.grpIgnoredWords.Controls.Add(this.txtNewIgnoredWord);
             this.grpIgnoredWords.Controls.Add(this.btnAddIgnoredWord);
             this.grpIgnoredWords.Controls.Add(this.btnRemoveIgnoredWord);
-            this.grpIgnoredWords.Location = new System.Drawing.Point(12, 360);
+            this.grpIgnoredWords.Location = new System.Drawing.Point(12, 241);
             this.grpIgnoredWords.Name = "grpIgnoredWords";
             this.grpIgnoredWords.Size = new System.Drawing.Size(508, 130);
             this.grpIgnoredWords.TabIndex = 5;
@@ -325,7 +326,7 @@ namespace KeyboardLayoutSwitcher
             // MainForm
             this.AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(534, 545);
+            this.ClientSize = new System.Drawing.Size(534, 426);
             this.Controls.Add(this.btnExit);
             this.Controls.Add(this.grpIgnoredWords);
             this.Controls.Add(this.grpProcesses);
