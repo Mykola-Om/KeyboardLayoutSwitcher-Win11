@@ -8,6 +8,61 @@ namespace KeyboardLayoutSwitcher
 {
     public static class KeyMapper
     {
+        private class LruCache
+        {
+            private readonly int capacity;
+            private readonly Dictionary<string, LinkedListNode<CacheItem>> cacheMap = new Dictionary<string, LinkedListNode<CacheItem>>(StringComparer.OrdinalIgnoreCase);
+            private readonly LinkedList<CacheItem> lruList = new LinkedList<CacheItem>();
+            private readonly object lockObj = new object();
+
+            private class CacheItem { public string Key; public bool Value; }
+
+            public LruCache(int capacity) { this.capacity = capacity; }
+
+            public bool TryGetValue(string key, out bool value)
+            {
+                lock (lockObj)
+                {
+                    if (cacheMap.TryGetValue(key, out var node))
+                    {
+                        lruList.Remove(node);
+                        lruList.AddFirst(node);
+                        value = node.Value.Value;
+                        return true;
+                    }
+                    value = false;
+                    return false;
+                }
+            }
+
+            public void Set(string key, bool value)
+            {
+                lock (lockObj)
+                {
+                    if (cacheMap.TryGetValue(key, out var node))
+                    {
+                        lruList.Remove(node);
+                        node.Value.Value = value;
+                        lruList.AddFirst(node);
+                    }
+                    else
+                    {
+                        if (cacheMap.Count >= capacity)
+                        {
+                            cacheMap.Remove(lruList.Last.Value.Key);
+                            lruList.RemoveLast();
+                        }
+                        var newNode = new LinkedListNode<CacheItem>(new CacheItem { Key = key, Value = value });
+                        lruList.AddFirst(newNode);
+                        cacheMap[key] = newNode;
+                    }
+                }
+            }
+        }
+
+        private static readonly LruCache enCache = new LruCache(500);
+        private static readonly LruCache ukCache = new LruCache(500);
+
         private static readonly HashSet<char> englishVowels = new HashSet<char>
         {
             'a', 'e', 'i', 'o', 'u', 'y', 'A', 'E', 'I', 'O', 'U', 'Y'
@@ -96,6 +151,21 @@ namespace KeyboardLayoutSwitcher
                 return false;
             }
 
+            var cache = isEnglishLayout ? enCache : ukCache;
+            if (cache.TryGetValue(word, out bool cachedResult))
+            {
+                return cachedResult;
+            }
+
+            bool result = CalculateIsWrongLayout(word, isEnglishLayout, settings);
+
+            cache.Set(word, result);
+
+            return result;
+        }
+
+        private static bool CalculateIsWrongLayout(string word, bool isEnglishLayout, AppSettings settings)
+        {
             string convertedWord = ConvertWord(word, isEnglishLayout);
             int sourceMappedChars = CountMappedChars(word, isEnglishLayout ? engToUkrMap : ukrToEngMap);
 
