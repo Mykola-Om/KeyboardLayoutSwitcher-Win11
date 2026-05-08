@@ -3,6 +3,7 @@ using System.Drawing;
 using System.Windows.Forms;
 using System.Runtime.InteropServices;
 using System.Linq;
+using System.Diagnostics;
 
 namespace KeyboardLayoutSwitcher
 {
@@ -15,10 +16,17 @@ namespace KeyboardLayoutSwitcher
         [DllImport("uxtheme.dll", ExactSpelling = true, CharSet = CharSet.Unicode)]
         public static extern int SetWindowTheme(IntPtr hwnd, string pszSubAppName, string pszSubIdList);
 
+        [DllImport("user32.dll")]
+        private static extern IntPtr GetForegroundWindow();
+
+        [DllImport("user32.dll")]
+        private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+
         private readonly AppSettings settings;
         private KeyboardHook keyboardHook;
         private bool isInitializing;
         private bool isExiting;
+        private int countdownValue;
         protected override void WndProc(ref Message m)
         {
             if (m.Msg == 0x0050) // WM_INPUTLANGCHANGE
@@ -222,6 +230,60 @@ namespace KeyboardLayoutSwitcher
                 lstProcesses.Items.RemoveAt(lstProcesses.SelectedIndex);
                 SettingsControlChanged(null, EventArgs.Empty);
             }
+        }
+
+        private void btnPickActive_Click(object sender, EventArgs e)
+        {
+            countdownValue = 3;
+            btnPickActive.Enabled = false;
+            btnPickActive.Text = $"{countdownValue}с...";
+            pickTimer.Start();
+        }
+
+        private void pickTimer_Tick(object sender, EventArgs e)
+        {
+            countdownValue--;
+            if (countdownValue > 0)
+            {
+                btnPickActive.Text = $"{countdownValue}с...";
+            }
+            else
+            {
+                pickTimer.Stop();
+                btnPickActive.Enabled = true;
+                btnPickActive.Text = "Активна";
+
+                IntPtr foregroundWindow = GetForegroundWindow();
+                if (foregroundWindow != this.Handle && foregroundWindow != IntPtr.Zero)
+                {
+                    string processName = GetProcessName(foregroundWindow);
+                    string normalized = AppSettings.NormalizeProcessName(processName);
+                    
+                    if (!string.IsNullOrEmpty(normalized) && !lstProcesses.Items.Contains(normalized))
+                    {
+                        lstProcesses.Items.Add(normalized);
+                        SettingsControlChanged(null, EventArgs.Empty);
+                    }
+                }
+                
+                this.Activate();
+            }
+        }
+
+        private string GetProcessName(IntPtr foregroundWindow)
+        {
+            if (foregroundWindow == IntPtr.Zero) return string.Empty;
+            GetWindowThreadProcessId(foregroundWindow, out uint processId);
+            if (processId == 0) return string.Empty;
+
+            try
+            {
+                using (Process process = Process.GetProcessById((int)processId))
+                {
+                    return process.ProcessName;
+                }
+            }
+            catch { return string.Empty; }
         }
 
         private void BtnAddIgnoredWord_Click(object sender, EventArgs e)
