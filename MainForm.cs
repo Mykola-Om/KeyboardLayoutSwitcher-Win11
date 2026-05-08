@@ -254,7 +254,8 @@ namespace KeyboardLayoutSwitcher
                 btnPickActive.Text = "Активна";
 
                 IntPtr foregroundWindow = GetForegroundWindow();
-                if (foregroundWindow != this.Handle && foregroundWindow != IntPtr.Zero)
+                // Ensure we don't pick our own window
+                if (foregroundWindow != IntPtr.Zero && foregroundWindow != this.Handle)
                 {
                     string processName = GetProcessName(foregroundWindow);
                     string normalized = AppSettings.NormalizeProcessName(processName);
@@ -266,24 +267,30 @@ namespace KeyboardLayoutSwitcher
                     }
                 }
                 
+                // Bring back focus after countdown
                 this.Activate();
             }
         }
 
-        private string GetProcessName(IntPtr foregroundWindow)
+        private string GetProcessName(IntPtr hwnd)
         {
-            if (foregroundWindow == IntPtr.Zero) return string.Empty;
-            GetWindowThreadProcessId(foregroundWindow, out uint processId);
+            if (hwnd == IntPtr.Zero) return string.Empty;
+            
+            uint processId;
+            GetWindowThreadProcessId(hwnd, out processId);
             if (processId == 0) return string.Empty;
 
             try
             {
-                using (Process process = Process.GetProcessById((int)processId))
+                using (Process proc = Process.GetProcessById((int)processId))
                 {
-                    return process.ProcessName;
+                    return proc.ProcessName;
                 }
             }
-            catch { return string.Empty; }
+            catch
+            {
+                return string.Empty;
+            }
         }
 
         private void BtnAddIgnoredWord_Click(object sender, EventArgs e)
