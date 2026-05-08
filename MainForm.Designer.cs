@@ -170,7 +170,7 @@ namespace KeyboardLayoutSwitcher
             this.grpHeuristic.Controls.Add(this.numMinimumMappedPercent);
             this.grpHeuristic.Controls.Add(this.lblMinimumVowelDelta);
             this.grpHeuristic.Controls.Add(this.numMinimumVowelDelta);
-            this.grpHeuristic.Location = new System.Drawing.Point(12, 95);
+            this.grpHeuristic.Location = new System.Drawing.Point(12, 500);
             this.grpHeuristic.Name = "grpHeuristic";
             this.grpHeuristic.Visible = false;
             this.grpHeuristic.Size = new System.Drawing.Size(508, 108);
@@ -264,7 +264,6 @@ namespace KeyboardLayoutSwitcher
             this.txtNewProcess.Size = new System.Drawing.Size(217, 23);
             this.txtNewProcess.TabIndex = 2;
 
-
             // btnAddProcess
             this.btnAddProcess.Location = new System.Drawing.Point(240, 50);
             this.btnAddProcess.Name = "btnAddProcess";
@@ -278,6 +277,18 @@ namespace KeyboardLayoutSwitcher
             this.btnRemoveProcess.Size = new System.Drawing.Size(80, 25);
             this.btnRemoveProcess.TabIndex = 4;
             this.btnRemoveProcess.Text = "Видалити";
+
+            // btnPickActive
+            this.btnPickActive.Location = new System.Drawing.Point(412, 50);
+            this.btnPickActive.Name = "btnPickActive";
+            this.btnPickActive.Size = new System.Drawing.Size(80, 25);
+            this.btnPickActive.TabIndex = 6;
+            this.btnPickActive.Text = "Активна";
+            this.btnPickActive.Click += new System.EventHandler(this.btnPickActive_Click);
+
+            // pickTimer
+            this.pickTimer.Interval = 1000;
+            this.pickTimer.Tick += new System.EventHandler(this.pickTimer_Tick);
 
             // lstProcesses
             this.lstProcesses.FormattingEnabled = true;
@@ -304,7 +315,6 @@ namespace KeyboardLayoutSwitcher
             this.txtNewIgnoredWord.Name = "txtNewIgnoredWord";
             this.txtNewIgnoredWord.Size = new System.Drawing.Size(217, 23);
             this.txtNewIgnoredWord.TabIndex = 0;
-
 
             // btnAddIgnoredWord
             this.btnAddIgnoredWord.Location = new System.Drawing.Point(240, 24);
@@ -360,5 +370,3 @@ namespace KeyboardLayoutSwitcher
         }
     }
 }
-
-
