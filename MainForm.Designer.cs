@@ -30,6 +30,8 @@ namespace KeyboardLayoutSwitcher
         private TextBox txtNewProcess;
         private Button btnAddProcess;
         private Button btnRemoveProcess;
+        private Button btnPickActive;
+        private Timer pickTimer;
         
         private GroupBox grpIgnoredWords;
         private ListBox lstIgnoredWords;
@@ -76,6 +78,8 @@ namespace KeyboardLayoutSwitcher
             this.txtNewProcess = new System.Windows.Forms.TextBox();
             this.btnAddProcess = new System.Windows.Forms.Button();
             this.btnRemoveProcess = new System.Windows.Forms.Button();
+            this.btnPickActive = new System.Windows.Forms.Button();
+            this.pickTimer = new System.Windows.Forms.Timer(this.components);
             
             this.grpIgnoredWords = new System.Windows.Forms.GroupBox();
             this.lstIgnoredWords = new System.Windows.Forms.ListBox();
@@ -230,6 +234,7 @@ namespace KeyboardLayoutSwitcher
             this.grpProcesses.Controls.Add(this.txtNewProcess);
             this.grpProcesses.Controls.Add(this.btnAddProcess);
             this.grpProcesses.Controls.Add(this.btnRemoveProcess);
+            this.grpProcesses.Controls.Add(this.btnPickActive);
             this.grpProcesses.Location = new System.Drawing.Point(12, 95);
             this.grpProcesses.Name = "grpProcesses";
             this.grpProcesses.Size = new System.Drawing.Size(508, 140);
