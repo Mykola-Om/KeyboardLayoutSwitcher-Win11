@@ -171,6 +171,7 @@ namespace KeyboardLayoutSwitcher
             if (menuItemPause != null)
             {
                 menuItemPause.Checked = !chkEnableSwitching.Checked;
+                menuItemPause.Text = chkEnableSwitching.Checked ? "Пауза" : "Продовжити";
             }
 
             if (!isInitializing)
@@ -260,7 +261,6 @@ namespace KeyboardLayoutSwitcher
         private void menuItemPause_Click(object sender, EventArgs e)
         {
             chkEnableSwitching.Checked = !chkEnableSwitching.Checked;
-            menuItemPause.Checked = !chkEnableSwitching.Checked;
         }
 
         private void menuItemExit_Click(object sender, EventArgs e)
@@ -348,9 +348,3 @@ namespace KeyboardLayoutSwitcher
         }
     }
 }
-
-
-
-
-
-
