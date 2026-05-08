@@ -215,23 +215,42 @@ namespace KeyboardLayoutSwitcher
                     
                     bool dummyLayout = oldLayout;
                     LayoutSwitcher.SwitchKeyboardLayout(ref dummyLayout);
-                    Thread.Sleep(30);
+                    
+                    // We can reduce sleep or remove it because Unicode input doesn't depend on layout
+                    Thread.Sleep(10);
 
-                    StringBuilder sb = new StringBuilder();
+                    List<INPUT> inputs = new List<INPUT>();
+
+                    // 1. Remove original word
                     for (int i = 0; i < originalLength; i++)
                     {
-                        sb.Append("{BACKSPACE}");
+                        inputs.Add(CreateKeyInput(VK_BACK, false));
+                        inputs.Add(CreateKeyInput(VK_BACK, true));
                     }
-                    sb.Append(EscapeForSendKeys(correctedWord));
-                    
-                    if (boundaryChar == '\r' || boundaryChar == '\n')
-                        sb.Append("{ENTER}");
-                    else if (boundaryChar == '\t')
-                        sb.Append("{TAB}");
-                    else
-                        sb.Append(EscapeForSendKeys(boundaryChar.ToString()));
 
-                    SendKeys.SendWait(sb.ToString());
+                    // 2. Type corrected word
+                    foreach (char c in correctedWord)
+                    {
+                        inputs.AddRange(CreateUnicodeInput(c));
+                    }
+
+                    // 3. Type boundary character
+                    if (boundaryChar == '\r' || boundaryChar == '\n')
+                    {
+                        inputs.Add(CreateKeyInput(VK_RETURN, false));
+                        inputs.Add(CreateKeyInput(VK_RETURN, true));
+                    }
+                    else if (boundaryChar == '\t')
+                    {
+                        inputs.Add(CreateKeyInput(VK_TAB, false));
+                        inputs.Add(CreateKeyInput(VK_TAB, true));
+                    }
+                    else if (boundaryChar != '\0')
+                    {
+                        inputs.AddRange(CreateUnicodeInput(boundaryChar));
+                    }
+
+                    SendInput((uint)inputs.Count, inputs.ToArray(), Marshal.SizeOf(typeof(INPUT)));
                     
                     Trace("Execute replacement done");
                 }
@@ -246,25 +265,59 @@ namespace KeyboardLayoutSwitcher
             }, null);
         }
 
-        private static string EscapeForSendKeys(string text)
+        private static INPUT CreateKeyInput(short wVk, bool isKeyUp)
         {
-            if (string.IsNullOrEmpty(text)) return text;
-            
-            StringBuilder sb = new StringBuilder(text.Length * 2);
-            foreach (char c in text)
+            return new INPUT
             {
-                if (c == '+' || c == '^' || c == '%' || c == '~' || c == '(' || c == ')' || c == '{' || c == '}' || c == '[' || c == ']')
+                type = INPUT_KEYBOARD,
+                u = new InputUnion
                 {
-                    sb.Append('{');
-                    sb.Append(c);
-                    sb.Append('}');
+                    ki = new KEYBDINPUT
+                    {
+                        wVk = (ushort)wVk,
+                        dwFlags = isKeyUp ? KEYEVENTF_KEYUP : 0,
+                        time = 0,
+                        dwExtraInfo = IntPtr.Zero
+                    }
                 }
-                else
+            };
+        }
+
+        private static INPUT[] CreateUnicodeInput(char c)
+        {
+            INPUT down = new INPUT
+            {
+                type = INPUT_KEYBOARD,
+                u = new InputUnion
                 {
-                    sb.Append(c);
+                    ki = new KEYBDINPUT
+                    {
+                        wVk = 0,
+                        wScan = c,
+                        dwFlags = KEYEVENTF_UNICODE,
+                        time = 0,
+                        dwExtraInfo = IntPtr.Zero
+                    }
                 }
-            }
-            return sb.ToString();
+            };
+
+            INPUT up = new INPUT
+            {
+                type = INPUT_KEYBOARD,
+                u = new InputUnion
+                {
+                    ki = new KEYBDINPUT
+                    {
+                        wVk = 0,
+                        wScan = c,
+                        dwFlags = KEYEVENTF_UNICODE | KEYEVENTF_KEYUP,
+                        time = 0,
+                        dwExtraInfo = IntPtr.Zero
+                    }
+                }
+            };
+
+            return new[] { down, up };
         }
 
         private void Trace(string message)
@@ -355,10 +408,10 @@ namespace KeyboardLayoutSwitcher
         private delegate IntPtr LowLevelKeyboardProc(int nCode, IntPtr wParam, IntPtr lParam);
 
         private const int WH_KEYBOARD_LL = 13;
-private const int WM_KEYDOWN = 0x0100;
+        private const int WM_KEYDOWN = 0x0100;
         private const int WM_SYSKEYDOWN = 0x0104;
         private const uint LLKHF_INJECTED = 0x00000010;
-private const int VK_BACK = 0x08;
+        private const int VK_BACK = 0x08;
         private const int VK_TAB = 0x09;
         private const int VK_RETURN = 0x0D;
         private const int VK_SPACE = 0x20;
@@ -383,11 +436,59 @@ private const int VK_BACK = 0x08;
         private const int VK_LMENU = 0xA4;
         private const int VK_RMENU = 0xA5;
         private const int VK_OEM_1 = 0xBA;
-private const int VK_OEM_COMMA = 0xBC;
-private const int VK_OEM_PERIOD = 0xBE;
-private const int VK_OEM_4 = 0xDB;
-private const int VK_OEM_6 = 0xDD;
+        private const int VK_OEM_COMMA = 0xBC;
+        private const int VK_OEM_PERIOD = 0xBE;
+        private const int VK_OEM_4 = 0xDB;
+        private const int VK_OEM_6 = 0xDD;
         private const int VK_OEM_7 = 0xDE;
+
+        private const int INPUT_KEYBOARD = 1;
+        private const uint KEYEVENTF_KEYUP = 0x0002;
+        private const uint KEYEVENTF_UNICODE = 0x0004;
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct INPUT
+        {
+            public int type;
+            public InputUnion u;
+        }
+
+        [StructLayout(LayoutKind.Explicit)]
+        private struct InputUnion
+        {
+            [FieldOffset(0)] public KEYBDINPUT ki;
+            [FieldOffset(0)] public MOUSEINPUT mi;
+            [FieldOffset(0)] public HARDWAREINPUT hi;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct KEYBDINPUT
+        {
+            public ushort wVk;
+            public ushort wScan;
+            public uint dwFlags;
+            public uint time;
+            public IntPtr dwExtraInfo;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct MOUSEINPUT
+        {
+            public int dx;
+            public int dy;
+            public uint mouseData;
+            public uint dwFlags;
+            public uint time;
+            public IntPtr dwExtraInfo;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct HARDWAREINPUT
+        {
+            public uint uMsg;
+            public ushort wParamL;
+            public ushort wParamH;
+        }
 
         [StructLayout(LayoutKind.Sequential)]
         private struct KbdLlHookStruct
@@ -398,6 +499,10 @@ private const int VK_OEM_6 = 0xDD;
             public uint time;
             public UIntPtr dwExtraInfo;
         }
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
+
         [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
         private static extern IntPtr SetWindowsHookEx(int idHook,
             LowLevelKeyboardProc lpfn, IntPtr hMod, uint dwThreadId);
