@@ -20,7 +20,9 @@ namespace KeyboardLayoutSwitcher
         private readonly SynchronizationContext synchronizationContext;
         private readonly string logPath;
         private IntPtr hookId = IntPtr.Zero;
+        private IntPtr mouseHookId = IntPtr.Zero;
         private LowLevelKeyboardProc proc;
+        private LowLevelMouseProc mouseProc;
         private bool isEnglishLayout;
         private StringBuilder currentWord = new StringBuilder();
         private bool isReplacing;
@@ -32,6 +34,7 @@ namespace KeyboardLayoutSwitcher
             synchronizationContext = SynchronizationContext.Current ?? new SynchronizationContext();
             logPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "KeyboardLayoutSwitcher", "trace.log");
             proc = HookCallback;
+            mouseProc = MouseHookCallback;
             isEnglishLayout = LayoutSwitcher.IsCurrentKeyboardLayoutEnglish();
             Trace("KeyboardHook initialized");
         }
@@ -45,23 +48,45 @@ namespace KeyboardLayoutSwitcher
             }
 
             hookId = SetHook(proc);
+            mouseHookId = SetMouseHook(mouseProc);
             Trace("Start hook result: " + hookId + " | lastError=" + Marshal.GetLastWin32Error());
         }
 
         public void Stop()
         {
-            if (hookId == IntPtr.Zero)
+            if (hookId != IntPtr.Zero)
             {
-                return;
+                UnhookWindowsHookEx(hookId);
+                hookId = IntPtr.Zero;
             }
-
-            UnhookWindowsHookEx(hookId);
-            hookId = IntPtr.Zero;
+            if (mouseHookId != IntPtr.Zero)
+            {
+                UnhookWindowsHookEx(mouseHookId);
+                mouseHookId = IntPtr.Zero;
+            }
         }
 
         private IntPtr SetHook(LowLevelKeyboardProc proc)
         {
             return SetWindowsHookEx(WH_KEYBOARD_LL, proc, IntPtr.Zero, 0);
+        }
+
+        private IntPtr SetMouseHook(LowLevelMouseProc proc)
+        {
+            return SetWindowsHookEx(WH_MOUSE_LL, proc, IntPtr.Zero, 0);
+        }
+
+        private IntPtr MouseHookCallback(int nCode, IntPtr wParam, IntPtr lParam)
+        {
+            if (nCode >= 0)
+            {
+                int msg = (int)wParam;
+                if (msg == WM_LBUTTONDOWN || msg == WM_RBUTTONDOWN || msg == WM_MBUTTONDOWN)
+                {
+                    currentWord.Clear();
+                }
+            }
+            return CallNextHookEx(mouseHookId, nCode, wParam, lParam);
         }
 
         private IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam)
@@ -117,6 +142,16 @@ namespace KeyboardLayoutSwitcher
                     return CallNextHookEx(hookId, nCode, wParam, lParam);
                 }
 
+                bool isCtrlPressed = IsKeyPressed(VK_CONTROL) || IsKeyPressed(VK_LCONTROL) || IsKeyPressed(VK_RCONTROL);
+                bool isAltPressed = IsKeyPressed(VK_MENU) || IsKeyPressed(VK_LMENU) || IsKeyPressed(VK_RMENU);
+                bool isWinPressed = IsKeyPressed(VK_LWIN) || IsKeyPressed(VK_RWIN);
+
+                if (isCtrlPressed || isAltPressed || isWinPressed)
+                {
+                    currentWord.Clear();
+                    return CallNextHookEx(hookId, nCode, wParam, lParam);
+                }
+
                 char ch = GetCharFromKey(vkCode, isEnglishLayout);
 
                 if (KeyMapper.IsLayoutWordCharacter(ch, isEnglishLayout))
@@ -135,9 +170,9 @@ namespace KeyboardLayoutSwitcher
 
                     currentWord.Clear();
                 }
-                else if (!IsModifierKey(vkCode) && (ch == '\0' || !char.IsLetterOrDigit(ch)))
+                else if (!IsModifierKey(vkCode))
                 {
-                    // Do not clear currentWord for undefined keys
+                    currentWord.Clear();
                 }
             }
             return CallNextHookEx(hookId, nCode, wParam, lParam);
@@ -342,6 +377,8 @@ namespace KeyboardLayoutSwitcher
                    vkCode == VK_MENU ||
                    vkCode == VK_LMENU ||
                    vkCode == VK_RMENU ||
+                   vkCode == VK_LWIN ||
+                   vkCode == VK_RWIN ||
                    vkCode == VK_CAPITAL;
         }
 
@@ -406,10 +443,15 @@ namespace KeyboardLayoutSwitcher
 
         // WinAPI functions and constants.
         private delegate IntPtr LowLevelKeyboardProc(int nCode, IntPtr wParam, IntPtr lParam);
+        private delegate IntPtr LowLevelMouseProc(int nCode, IntPtr wParam, IntPtr lParam);
 
         private const int WH_KEYBOARD_LL = 13;
+        private const int WH_MOUSE_LL = 14;
         private const int WM_KEYDOWN = 0x0100;
         private const int WM_SYSKEYDOWN = 0x0104;
+        private const int WM_LBUTTONDOWN = 0x0201;
+        private const int WM_RBUTTONDOWN = 0x0204;
+        private const int WM_MBUTTONDOWN = 0x0207;
         private const uint LLKHF_INJECTED = 0x00000010;
         private const int VK_BACK = 0x08;
         private const int VK_TAB = 0x09;
@@ -435,10 +477,17 @@ namespace KeyboardLayoutSwitcher
         private const int VK_RCONTROL = 0xA3;
         private const int VK_LMENU = 0xA4;
         private const int VK_RMENU = 0xA5;
+        private const int VK_LWIN = 0x5B;
+        private const int VK_RWIN = 0x5C;
         private const int VK_OEM_1 = 0xBA;
+        private const int VK_OEM_PLUS = 0xBB;
         private const int VK_OEM_COMMA = 0xBC;
+        private const int VK_OEM_MINUS = 0xBD;
         private const int VK_OEM_PERIOD = 0xBE;
+        private const int VK_OEM_2 = 0xBF;
+        private const int VK_OEM_3 = 0xC0;
         private const int VK_OEM_4 = 0xDB;
+        private const int VK_OEM_5 = 0xDC;
         private const int VK_OEM_6 = 0xDD;
         private const int VK_OEM_7 = 0xDE;
 
@@ -505,7 +554,7 @@ namespace KeyboardLayoutSwitcher
 
         [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
         private static extern IntPtr SetWindowsHookEx(int idHook,
-            LowLevelKeyboardProc lpfn, IntPtr hMod, uint dwThreadId);
+            Delegate lpfn, IntPtr hMod, uint dwThreadId);
 
         [DllImport("user32.dll", SetLastError = true)]
         private static extern bool UnhookWindowsHookEx(IntPtr hhk);
@@ -539,7 +588,10 @@ namespace KeyboardLayoutSwitcher
                 [(int)Keys.U] = 'u', [(int)Keys.V] = 'v', [(int)Keys.W] = 'w', [(int)Keys.X] = 'x',
                 [(int)Keys.Y] = 'y', [(int)Keys.Z] = 'z',
                 [VK_OEM_4] = '[', [VK_OEM_6] = ']', [VK_OEM_1] = ';', [VK_OEM_7] = '\'',
-                [VK_OEM_COMMA] = ',', [VK_OEM_PERIOD] = '.', [VK_SPACE] = ' '
+                [VK_OEM_COMMA] = ',', [VK_OEM_PERIOD] = '.', [VK_SPACE] = ' ',
+                [(int)Keys.D1] = '1', [(int)Keys.D2] = '2', [(int)Keys.D3] = '3', [(int)Keys.D4] = '4', [(int)Keys.D5] = '5',
+                [(int)Keys.D6] = '6', [(int)Keys.D7] = '7', [(int)Keys.D8] = '8', [(int)Keys.D9] = '9', [(int)Keys.D0] = '0',
+                [VK_OEM_MINUS] = '-', [VK_OEM_PLUS] = '=', [VK_OEM_2] = '/', [VK_OEM_3] = '`', [VK_OEM_5] = '\\'
             };
         }
 
@@ -555,7 +607,10 @@ namespace KeyboardLayoutSwitcher
                 [(int)Keys.U] = 'U', [(int)Keys.V] = 'V', [(int)Keys.W] = 'W', [(int)Keys.X] = 'X',
                 [(int)Keys.Y] = 'Y', [(int)Keys.Z] = 'Z',
                 [VK_OEM_4] = '{', [VK_OEM_6] = '}', [VK_OEM_1] = ':', [VK_OEM_7] = '"',
-                [VK_OEM_COMMA] = '<', [VK_OEM_PERIOD] = '>', [VK_SPACE] = ' '
+                [VK_OEM_COMMA] = '<', [VK_OEM_PERIOD] = '>', [VK_SPACE] = ' ',
+                [(int)Keys.D1] = '!', [(int)Keys.D2] = '@', [(int)Keys.D3] = '#', [(int)Keys.D4] = '$', [(int)Keys.D5] = '%',
+                [(int)Keys.D6] = '^', [(int)Keys.D7] = '&', [(int)Keys.D8] = '*', [(int)Keys.D9] = '(', [(int)Keys.D0] = ')',
+                [VK_OEM_MINUS] = '_', [VK_OEM_PLUS] = '+', [VK_OEM_2] = '?', [VK_OEM_3] = '~', [VK_OEM_5] = '|'
             };
         }
 
@@ -572,7 +627,10 @@ namespace KeyboardLayoutSwitcher
                 [(int)Keys.Z] = 'я', [(int)Keys.X] = 'ч', [(int)Keys.C] = 'с', [(int)Keys.V] = 'м',
                 [(int)Keys.B] = 'и', [(int)Keys.N] = 'т', [(int)Keys.M] = 'ь',
                 [VK_OEM_4] = 'х', [VK_OEM_6] = 'ї', [VK_OEM_1] = 'ж', [VK_OEM_7] = 'є',
-                [VK_OEM_COMMA] = 'б', [VK_OEM_PERIOD] = 'ю', [VK_SPACE] = ' '
+                [VK_OEM_COMMA] = 'б', [VK_OEM_PERIOD] = 'ю', [VK_SPACE] = ' ',
+                [(int)Keys.D1] = '1', [(int)Keys.D2] = '2', [(int)Keys.D3] = '3', [(int)Keys.D4] = '4', [(int)Keys.D5] = '5',
+                [(int)Keys.D6] = '6', [(int)Keys.D7] = '7', [(int)Keys.D8] = '8', [(int)Keys.D9] = '9', [(int)Keys.D0] = '0',
+                [VK_OEM_MINUS] = '-', [VK_OEM_PLUS] = '=', [VK_OEM_2] = '.', [VK_OEM_3] = '\'', [VK_OEM_5] = '\\'
             };
         }
 
@@ -589,7 +647,10 @@ namespace KeyboardLayoutSwitcher
                 [(int)Keys.Z] = 'Я', [(int)Keys.X] = 'Ч', [(int)Keys.C] = 'С', [(int)Keys.V] = 'М',
                 [(int)Keys.B] = 'И', [(int)Keys.N] = 'Т', [(int)Keys.M] = 'Ь',
                 [VK_OEM_4] = 'Х', [VK_OEM_6] = 'Ї', [VK_OEM_1] = 'Ж', [VK_OEM_7] = 'Є',
-                [VK_OEM_COMMA] = 'Б', [VK_OEM_PERIOD] = 'Ю', [VK_SPACE] = ' '
+                [VK_OEM_COMMA] = 'Б', [VK_OEM_PERIOD] = 'Ю', [VK_SPACE] = ' ',
+                [(int)Keys.D1] = '!', [(int)Keys.D2] = '"', [(int)Keys.D3] = '№', [(int)Keys.D4] = ';', [(int)Keys.D5] = '%',
+                [(int)Keys.D6] = ':', [(int)Keys.D7] = '?', [(int)Keys.D8] = '*', [(int)Keys.D9] = '(', [(int)Keys.D0] = ')',
+                [VK_OEM_MINUS] = '_', [VK_OEM_PLUS] = '+', [VK_OEM_2] = ',', [VK_OEM_3] = '₴', [VK_OEM_5] = '/'
             };
         }
     }
