@@ -27,6 +27,7 @@ namespace KeyboardLayoutSwitcher.Tests
             TestConvertWordEnglishToUkrainian();
             TestConvertWordUkrainianToEnglish();
             TestIgnoredWords();
+            TestClearCacheInvalidatesStaleIgnoredWord();
             TestMixedLayout();
 
             Console.WriteLine("\n✓ All tests completed!");
@@ -135,6 +136,30 @@ namespace KeyboardLayoutSwitcher.Tests
             bool result = KeyMapper.IsWrongLayout(garbled, isEnglishLayout: false, settings);
             Assert(!result, $"Expected ignored word '{garbled}' to be skipped");
             Console.WriteLine("✓ Ignored words list works");
+        }
+
+        private void TestClearCacheInvalidatesStaleIgnoredWord()
+        {
+            // Reproduces the scenario ClearCache() exists for: a word gets auto-corrected
+            // once (and cached), the user then adds it to the ignore list, and the app must
+            // stop auto-correcting it without requiring a restart.
+            const string englishWord = "react"; // hardcoded in commonEnglishWords, unused elsewhere
+            string garbled = KeyMapper.ConvertWord(englishWord, isEnglishLayout: true);
+
+            settings.IgnoredWordsText = string.Empty;
+            bool beforeIgnoring = KeyMapper.IsWrongLayout(garbled, isEnglishLayout: false, settings);
+            Assert(beforeIgnoring, $"Expected '{garbled}' to be flagged as wrong layout before being ignored");
+
+            // Simulate the user adding the word to the ignore list after it was already cached.
+            settings.IgnoredWordsText = garbled;
+            bool staleResult = KeyMapper.IsWrongLayout(garbled, isEnglishLayout: false, settings);
+            Assert(staleResult, $"Expected stale cache to still report '{garbled}' as wrong layout before ClearCache()");
+
+            KeyMapper.ClearCache();
+            bool freshResult = KeyMapper.IsWrongLayout(garbled, isEnglishLayout: false, settings);
+            Assert(!freshResult, $"Expected '{garbled}' to be skipped after ClearCache() re-evaluates the ignore list");
+
+            Console.WriteLine("✓ ClearCache invalidates stale ignore-list results");
         }
 
         private void TestMixedLayout()

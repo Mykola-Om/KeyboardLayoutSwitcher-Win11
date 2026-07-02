@@ -58,6 +58,15 @@ namespace KeyboardLayoutSwitcher
                     }
                 }
             }
+
+            public void Clear()
+            {
+                lock (lockObj)
+                {
+                    cacheMap.Clear();
+                    lruList.Clear();
+                }
+            }
         }
 
         private static readonly LruCache enCache = new LruCache(500);
@@ -128,6 +137,17 @@ namespace KeyboardLayoutSwitcher
                 // Словник не завантажився - використовуємо базові слова, визначені в коді.
                 Console.WriteLine($"Failed to load dictionary {relativePath}: {ex.Message}");
             }
+        }
+
+        /// <summary>
+        /// Clears cached IsWrongLayout results. Must be called whenever settings that
+        /// affect the heuristic (IgnoredWords, MinimumMappedPercent) change, since the
+        /// cache is keyed only by word+layout and is otherwise unaware of settings changes.
+        /// </summary>
+        public static void ClearCache()
+        {
+            enCache.Clear();
+            ukCache.Clear();
         }
 
         public static string ConvertWord(string word, bool isEnglishLayout)

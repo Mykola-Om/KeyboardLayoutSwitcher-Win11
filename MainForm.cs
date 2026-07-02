@@ -350,6 +350,11 @@ namespace KeyboardLayoutSwitcher
             settings.IgnoredWordsText = string.Join(Environment.NewLine, lstIgnoredWords.Items.Cast<string>());
             settings.MinimumMappedPercent = (int)numMinimumMappedPercent.Value;
 
+            // IgnoredWords/MinimumMappedPercent affect KeyMapper's heuristic, but its cache
+            // is keyed only by word+layout, so stale entries from before this change must
+            // be dropped or they'd keep returning the old verdict until evicted.
+            KeyMapper.ClearCache();
+
             ApplyRuntimeSettings();
         }
 
