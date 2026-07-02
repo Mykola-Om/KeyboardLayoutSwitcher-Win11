@@ -9,6 +9,7 @@ namespace KeyboardLayoutSwitcher.Tests
             int failures = 0;
             failures += RunSuite("KeyMapperTests", () => new KeyMapperTests().RunAllTests());
             failures += RunSuite("WordTrackerTests", () => new WordTrackerTests().RunAllTests());
+            failures += RunSuite("AppSettingsTests", () => new AppSettingsTests().RunAllTests());
 
             Console.WriteLine();
             if (failures > 0)

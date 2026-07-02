@@ -6,7 +6,7 @@ namespace KeyboardLayoutSwitcher.Tests
     /// <summary>
     /// Unit tests for WordTracker state machine.
     /// </summary>
-    public class WordTrackerTests
+    public class WordTrackerTests : TestBase
     {
         public void RunAllTests()
         {
@@ -110,14 +110,6 @@ namespace KeyboardLayoutSwitcher.Tests
             Assert(tracker.Current == "keyboard", $"Should accumulate to '{text}'");
             Assert(tracker.Length == text.Length, $"Length should be {text.Length}");
             Console.WriteLine("✓ Multiple appends work correctly");
-        }
-
-        private void Assert(bool condition, string message)
-        {
-            if (!condition)
-            {
-                throw new Exception($"FAIL: {message}");
-            }
         }
     }
 }

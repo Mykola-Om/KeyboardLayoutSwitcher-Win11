@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Drawing;
-using System.Runtime.InteropServices;
 using System.Threading;
 using System.Windows.Forms;
 
@@ -8,9 +7,6 @@ namespace KeyboardLayoutSwitcher
 {
     static class Program
     {
-        [DllImport("dwmapi.dll")]
-        private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int attrValue, int attrSize);
-
         private static Mutex appMutex;
 
         [STAThread]
@@ -61,7 +57,7 @@ namespace KeyboardLayoutSwitcher
                 try
                 {
                     int useImmersiveDarkMode = 1;
-                    DwmSetWindowAttribute(f.Handle, 20, ref useImmersiveDarkMode, sizeof(int));
+                    Win32Interop.DwmSetWindowAttribute(f.Handle, Win32Interop.DWMWA_USE_IMMERSIVE_DARK_MODE, ref useImmersiveDarkMode, sizeof(int));
                 }
                 catch { }
 

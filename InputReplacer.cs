@@ -7,6 +7,11 @@ namespace KeyboardLayoutSwitcher
 {
     public class InputReplacer
     {
+        // Час, який даємо Windows застосувати WM_INPUTLANGCHANGEREQUEST перед відправкою
+        // замінюючих натискань. Без затримки SendInput інколи випереджає фактичну зміну
+        // розкладки, і символи йдуть у старій розкладці.
+        private const int LayoutSwitchSettleDelayMs = 10;
+
         private readonly SynchronizationContext synchronizationContext;
         private bool isReplacing;
 
@@ -27,7 +32,7 @@ namespace KeyboardLayoutSwitcher
                     bool dummyLayout = oldLayout;
                     LayoutSwitcher.SwitchKeyboardLayout(ref dummyLayout);
 
-                    Thread.Sleep(10);
+                    Thread.Sleep(LayoutSwitchSettleDelayMs);
 
                     List<Win32Interop.INPUT> inputs = new List<Win32Interop.INPUT>();
 

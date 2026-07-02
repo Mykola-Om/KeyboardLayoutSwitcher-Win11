@@ -3,24 +3,18 @@ using System.Drawing;
 using System.Windows.Forms;
 using System.Runtime.InteropServices;
 using System.Linq;
-using System.Diagnostics;
 
 namespace KeyboardLayoutSwitcher
 {
     public partial class MainForm : Form
     {
-        [DllImport("dwmapi.dll")]
-        private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int attrValue, int attrSize);
-        private const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
-
         [DllImport("uxtheme.dll", ExactSpelling = true, CharSet = CharSet.Unicode)]
         public static extern int SetWindowTheme(IntPtr hwnd, string pszSubAppName, string pszSubIdList);
 
-        [DllImport("user32.dll")]
-        private static extern IntPtr GetForegroundWindow();
-
-        [DllImport("user32.dll")]
-        private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+        // "Обрати активне вікно" чекає перед фіксацією процесу, щоб користувач встиг
+        // перемкнутись на потрібне вікно. pickTimer.Interval у Designer.cs виставлений
+        // на 1000 мс, тож це значення саме в секундах — за узгодженням з тим таймером.
+        private const int PickActiveWindowCountdownSeconds = 3;
 
         private readonly AppSettings settings;
         private KeyboardHook keyboardHook;
@@ -101,7 +95,7 @@ namespace KeyboardLayoutSwitcher
             try
             {
                 int useImmersiveDarkMode = 1;
-                DwmSetWindowAttribute(this.Handle, DWMWA_USE_IMMERSIVE_DARK_MODE, ref useImmersiveDarkMode, sizeof(int));
+                Win32Interop.DwmSetWindowAttribute(this.Handle, Win32Interop.DWMWA_USE_IMMERSIVE_DARK_MODE, ref useImmersiveDarkMode, sizeof(int));
             }
             catch { }
 
@@ -195,29 +189,57 @@ namespace KeyboardLayoutSwitcher
             ShowMainWindow();
         }
 
-                private void TxtNewProcess_KeyDown(object sender, KeyEventArgs e) { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; BtnAddProcess_Click(sender, e); } }
-        private void TxtNewIgnoredWord_KeyDown(object sender, KeyEventArgs e) { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; BtnAddIgnoredWord_Click(sender, e); } }
+        private void TxtNewProcess_KeyDown(object sender, KeyEventArgs e) { ForwardEnterToClick(e, BtnAddProcess_Click); }
+        private void TxtNewIgnoredWord_KeyDown(object sender, KeyEventArgs e) { ForwardEnterToClick(e, BtnAddIgnoredWord_Click); }
+
+        private static void ForwardEnterToClick(KeyEventArgs e, EventHandler clickHandler)
+        {
+            if (e.KeyCode == Keys.Enter)
+            {
+                e.SuppressKeyPress = true;
+                clickHandler(null, EventArgs.Empty);
+            }
+        }
 
         private void BtnAddProcess_Click(object sender, EventArgs e)
         {
-            if (!string.IsNullOrWhiteSpace(txtNewProcess.Text) && !lstProcesses.Items.Contains(txtNewProcess.Text.Trim())) {
-                lstProcesses.Items.Add(txtNewProcess.Text.Trim());
-                txtNewProcess.Clear();
-                SettingsControlChanged(null, EventArgs.Empty);
-            }
+            AddTagIfNew(lstProcesses, txtNewProcess);
         }
 
         private void BtnRemoveProcess_Click(object sender, EventArgs e)
         {
-            if (lstProcesses.SelectedIndex >= 0) {
-                lstProcesses.Items.RemoveAt(lstProcesses.SelectedIndex);
-                SettingsControlChanged(null, EventArgs.Empty);
+            RemoveSelectedTag(lstProcesses);
+        }
+
+        // Спільна логіка для обох "тег-листів" форми (процеси та слова-винятки):
+        // додати непорожній, ще не присутній текст і повідомити про зміну налаштувань.
+        private void AddTagIfNew(ListBox list, TextBox input)
+        {
+            string trimmed = input.Text.Trim();
+            if (string.IsNullOrWhiteSpace(trimmed) || list.Items.Contains(trimmed))
+            {
+                return;
             }
+
+            list.Items.Add(trimmed);
+            input.Clear();
+            SettingsControlChanged(null, EventArgs.Empty);
+        }
+
+        private void RemoveSelectedTag(ListBox list)
+        {
+            if (list.SelectedIndex < 0)
+            {
+                return;
+            }
+
+            list.Items.RemoveAt(list.SelectedIndex);
+            SettingsControlChanged(null, EventArgs.Empty);
         }
 
         private void btnPickActive_Click(object sender, EventArgs e)
         {
-            countdownValue = 3;
+            countdownValue = PickActiveWindowCountdownSeconds;
             btnPickActive.Enabled = false;
             btnPickActive.Text = $"{countdownValue}с...";
             pickTimer.Start();
@@ -236,61 +258,33 @@ namespace KeyboardLayoutSwitcher
                 btnPickActive.Enabled = true;
                 btnPickActive.Text = "Активна";
 
-                IntPtr foregroundWindow = GetForegroundWindow();
+                IntPtr foregroundWindow = Win32Interop.GetForegroundWindow();
                 // Ensure we don't pick our own window
                 if (foregroundWindow != IntPtr.Zero && foregroundWindow != this.Handle)
                 {
-                    string processName = GetProcessName(foregroundWindow);
+                    string processName = ProcessNameResolver.GetProcessName(foregroundWindow);
                     string normalized = AppSettings.NormalizeProcessName(processName);
-                    
+
                     if (!string.IsNullOrEmpty(normalized) && !lstProcesses.Items.Contains(normalized))
                     {
                         lstProcesses.Items.Add(normalized);
                         SettingsControlChanged(null, EventArgs.Empty);
                     }
                 }
-                
+
                 // Bring back focus after countdown
                 this.Activate();
             }
         }
 
-        private string GetProcessName(IntPtr hwnd)
-        {
-            if (hwnd == IntPtr.Zero) return string.Empty;
-            
-            uint processId;
-            GetWindowThreadProcessId(hwnd, out processId);
-            if (processId == 0) return string.Empty;
-
-            try
-            {
-                using (Process proc = Process.GetProcessById((int)processId))
-                {
-                    return proc.ProcessName;
-                }
-            }
-            catch
-            {
-                return string.Empty;
-            }
-        }
-
         private void BtnAddIgnoredWord_Click(object sender, EventArgs e)
         {
-            if (!string.IsNullOrWhiteSpace(txtNewIgnoredWord.Text) && !lstIgnoredWords.Items.Contains(txtNewIgnoredWord.Text.Trim())) {
-                lstIgnoredWords.Items.Add(txtNewIgnoredWord.Text.Trim());
-                txtNewIgnoredWord.Clear();
-                SettingsControlChanged(null, EventArgs.Empty);
-            }
+            AddTagIfNew(lstIgnoredWords, txtNewIgnoredWord);
         }
 
         private void BtnRemoveIgnoredWord_Click(object sender, EventArgs e)
         {
-            if (lstIgnoredWords.SelectedIndex >= 0) {
-                lstIgnoredWords.Items.RemoveAt(lstIgnoredWords.SelectedIndex);
-                SettingsControlChanged(null, EventArgs.Empty);
-            }
+            RemoveSelectedTag(lstIgnoredWords);
         }
 
         private void MainForm_FormClosing(object sender, FormClosingEventArgs e)
@@ -327,18 +321,34 @@ namespace KeyboardLayoutSwitcher
             chkEnableSwitching.Checked = settings.IsSwitchingEnabled;
             chkStartWithWindows.Checked = settings.StartWithWindows || StartupManager.IsEnabled();
             cmbProcessMode.SelectedIndex = (int)settings.ProcessFilterMode;
-                        lstProcesses.Items.Clear();
-            if (!string.IsNullOrWhiteSpace(settings.ProcessFilterText)) {
-                foreach (var p in settings.ProcessFilterText.Split(new[] { '\r', '\n', ',' }, StringSplitOptions.RemoveEmptyEntries)) lstProcesses.Items.Add(p.Trim());
-            }
-            lstIgnoredWords.Items.Clear();
-            if (!string.IsNullOrWhiteSpace(settings.IgnoredWordsText)) {
-                foreach (var w in settings.IgnoredWordsText.Split(new[] { '\r', '\n', ',' }, StringSplitOptions.RemoveEmptyEntries)) lstIgnoredWords.Items.Add(w.Trim());
-            }
+            PopulateListFromText(lstProcesses, settings.ProcessFilterText);
+            PopulateListFromText(lstIgnoredWords, settings.IgnoredWordsText);
             numMinimumMappedPercent.Value = Clamp(numMinimumMappedPercent, settings.MinimumMappedPercent);
 
             settings.StartWithWindows = chkStartWithWindows.Checked;
             isInitializing = false;
+        }
+
+        // Наповнює ListBox рядками з тексту, розбитого за AppSettings.ListDelimiters —
+        // тим самим набором, яким AppSettings.ProcessNames/IgnoredWords парсять цей текст,
+        // щоб UI і збережені налаштування завжди розуміли роздільники однаково.
+        private static void PopulateListFromText(ListBox list, string text)
+        {
+            list.Items.Clear();
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                return;
+            }
+
+            foreach (string item in text.Split(AppSettings.ListDelimiters, StringSplitOptions.RemoveEmptyEntries))
+            {
+                list.Items.Add(item.Trim());
+            }
+        }
+
+        private static string JoinListItems(ListBox list)
+        {
+            return string.Join(Environment.NewLine, list.Items.Cast<string>());
         }
 
         private void ApplyControlsToSettings()
@@ -346,8 +356,8 @@ namespace KeyboardLayoutSwitcher
             settings.IsSwitchingEnabled = chkEnableSwitching.Checked;
             settings.StartWithWindows = chkStartWithWindows.Checked;
             if (cmbProcessMode.SelectedIndex >= 0) settings.ProcessFilterMode = (ProcessFilterMode)cmbProcessMode.SelectedIndex;
-            settings.ProcessFilterText = string.Join(Environment.NewLine, lstProcesses.Items.Cast<string>());
-            settings.IgnoredWordsText = string.Join(Environment.NewLine, lstIgnoredWords.Items.Cast<string>());
+            settings.ProcessFilterText = JoinListItems(lstProcesses);
+            settings.IgnoredWordsText = JoinListItems(lstIgnoredWords);
             settings.MinimumMappedPercent = (int)numMinimumMappedPercent.Value;
 
             // IgnoredWords/MinimumMappedPercent affect KeyMapper's heuristic, but its cache

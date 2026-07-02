@@ -14,6 +14,16 @@ namespace KeyboardLayoutSwitcher
 
     public sealed class AppSettings
     {
+        // Дефолт застосовується і як стартове значення властивості нижче, і як фолбек
+        // у KeyMapper, коли settings відсутні (напр. у тестах) — тримаємо в одному місці,
+        // щоб дві копії не розійшлись.
+        public const int DefaultMinimumMappedPercent = 80;
+
+        // Спільний набір розділювачів для ProcessFilterText/IgnoredWordsText — і для парсингу
+        // тут, і для наповнення відповідних ListBox у MainForm, щоб обидва місця розуміли
+        // текст однаково (раніше MainForm використовував інший набір без ';').
+        public static readonly char[] ListDelimiters = { '\r', '\n', ',', ';' };
+
         private string processFilterText = string.Empty;
         private string ignoredWordsText = string.Empty;
         private HashSet<string> cachedProcessNames;
@@ -47,7 +57,7 @@ namespace KeyboardLayoutSwitcher
             }
         }
 
-        public int MinimumMappedPercent { get; set; } = 80;
+        public int MinimumMappedPercent { get; set; } = DefaultMinimumMappedPercent;
 
         [XmlIgnore]
         public HashSet<string> ProcessNames
@@ -56,13 +66,7 @@ namespace KeyboardLayoutSwitcher
             {
                 if (cachedProcessNames == null)
                 {
-                    cachedProcessNames = new HashSet<string>(
-                        ProcessFilterText
-                            .Split(new[] { '\r', '\n', ',', ';' }, StringSplitOptions.RemoveEmptyEntries)
-                            .Select(NormalizeProcessName)
-                            .Where(name => !string.IsNullOrWhiteSpace(name))
-                            .Distinct(StringComparer.OrdinalIgnoreCase),
-                        StringComparer.OrdinalIgnoreCase);
+                    cachedProcessNames = ParseList(ProcessFilterText, NormalizeProcessName);
                 }
                 return cachedProcessNames;
             }
@@ -75,16 +79,19 @@ namespace KeyboardLayoutSwitcher
             {
                 if (cachedIgnoredWords == null)
                 {
-                    cachedIgnoredWords = new HashSet<string>(
-                        IgnoredWordsText
-                            .Split(new[] { '\r', '\n', ',', ';' }, StringSplitOptions.RemoveEmptyEntries)
-                            .Select(word => word.Trim())
-                            .Where(word => !string.IsNullOrWhiteSpace(word))
-                            .Distinct(StringComparer.OrdinalIgnoreCase),
-                        StringComparer.OrdinalIgnoreCase);
+                    cachedIgnoredWords = ParseList(IgnoredWordsText, word => word.Trim());
                 }
                 return cachedIgnoredWords;
             }
+        }
+
+        private static HashSet<string> ParseList(string text, Func<string, string> normalize)
+        {
+            return new HashSet<string>(
+                text.Split(ListDelimiters, StringSplitOptions.RemoveEmptyEntries)
+                    .Select(normalize)
+                    .Where(item => !string.IsNullOrWhiteSpace(item)),
+                StringComparer.OrdinalIgnoreCase);
         }
 
         public bool IsProcessAllowed(string processName)

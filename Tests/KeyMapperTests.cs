@@ -6,7 +6,7 @@ namespace KeyboardLayoutSwitcher.Tests
     /// <summary>
     /// Unit tests for KeyMapper heuristics.
     /// </summary>
-    public class KeyMapperTests
+    public class KeyMapperTests : TestBase
     {
         private readonly AppSettings settings;
 
@@ -170,14 +170,6 @@ namespace KeyboardLayoutSwitcher.Tests
 
             // This tests the unnaturalness scoring (consonant clusters, etc.)
             Console.WriteLine($"✓ Mixed/garbled layout detection (result: {result})");
-        }
-
-        private void Assert(bool condition, string message)
-        {
-            if (!condition)
-            {
-                throw new Exception($"FAIL: {message}");
-            }
         }
     }
 }

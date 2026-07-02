@@ -5,6 +5,13 @@ namespace KeyboardLayoutSwitcher
 {
     public static class Win32Interop
     {
+        // DWM window attributes
+        public const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
+
+        // GetKeyState() return value bit masks
+        public const int KEYSTATE_TOGGLED = 0x0001; // low-order bit: key is toggled on (e.g. Caps Lock)
+        public const int KEYSTATE_PRESSED = 0x8000; // high-order bit: key is currently held down
+
         // Hook types
         public const int WH_KEYBOARD_LL = 13;
         public const int WH_MOUSE_LL = 14;
@@ -140,5 +147,8 @@ namespace KeyboardLayoutSwitcher
 
         [DllImport("user32.dll")]
         public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+
+        [DllImport("dwmapi.dll")]
+        public static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int attrValue, int attrSize);
     }
 }

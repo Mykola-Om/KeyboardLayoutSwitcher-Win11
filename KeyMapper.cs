@@ -69,8 +69,30 @@ namespace KeyboardLayoutSwitcher
             }
         }
 
-        private static readonly LruCache enCache = new LruCache(500);
-        private static readonly LruCache ukCache = new LruCache(500);
+        // Розмір LRU-кешу результатів IsWrongLayout (окремо для кожної розкладки).
+        private const int WordCacheCapacity = 500;
+
+        // Скільки символів слова дозволено лишити "непереконвертованими" (напр. цифри чи апострофи),
+        // щоб все одно вважати слово повністю переведеним у протилежну розкладку.
+        private const int AlmostFullyMappedTolerance = 1;
+
+        // Поріг довжини безперервного ланцюжка приголосних, з якого починається штраф за "неприродність".
+        private const int ConsecutiveConsonantsThreshold = 4;
+        private const int ConsecutiveConsonantsPenalty = 40;   // штраф при досягненні порогу
+        private const int ExtraConsecutiveConsonantPenalty = 20; // додатковий штраф за кожен наступний приголосний понад поріг
+
+        private const int NoVowelsMinimumWordLength = 3;
+        private const int NoVowelsPenalty = 30;
+
+        // Штраф за поєднання символів, які практично не зустрічаються у відповідній мові
+        // (подвоєні рідкісні літери, кириличні літери з інших мов, неможливі англійські біграми).
+        private const int ForbiddenCombinationPenalty = 50;
+
+        // Штраф за слово, що починається на "x" з наступним приголосним (нетипово для англійської).
+        private const int UnlikelyLeadingXPenalty = 30;
+
+        private static readonly LruCache enCache = new LruCache(WordCacheCapacity);
+        private static readonly LruCache ukCache = new LruCache(WordCacheCapacity);
 
         private static readonly HashSet<char> englishVowels = new HashSet<char>
         {
@@ -203,7 +225,7 @@ namespace KeyboardLayoutSwitcher
             }
 
             if (MatchesFrequentWord(convertedWord, !isEnglishLayout) &&
-                sourceMappedChars >= Math.Max(1, word.Length - 1))
+                sourceMappedChars >= Math.Max(1, word.Length - AlmostFullyMappedTolerance))
             {
                 return true;
             }
@@ -216,7 +238,7 @@ namespace KeyboardLayoutSwitcher
             int sourceVowelCount = CountVowels(word, isEnglishLayout ? englishVowels : ukrainianVowels);
             int convertedVowelCount = CountVowels(convertedWord, isEnglishLayout ? ukrainianVowels : englishVowels);
 
-            int minimumMappedPercent = Math.Max(1, Math.Min(100, settings?.MinimumMappedPercent ?? 80));
+            int minimumMappedPercent = Math.Max(1, Math.Min(100, settings?.MinimumMappedPercent ?? AppSettings.DefaultMinimumMappedPercent));
             int mappedThreshold = (int)Math.Ceiling(word.Length * minimumMappedPercent / 100.0);
 
             if (sourceMappedChars < mappedThreshold)
@@ -266,29 +288,29 @@ namespace KeyboardLayoutSwitcher
                     else
                     {
                         consecutiveConsonants++;
-                        if (consecutiveConsonants == 4) score += 40;
-                        else if (consecutiveConsonants > 4) score += 20;
+                        if (consecutiveConsonants == ConsecutiveConsonantsThreshold) score += ConsecutiveConsonantsPenalty;
+                        else if (consecutiveConsonants > ConsecutiveConsonantsThreshold) score += ExtraConsecutiveConsonantPenalty;
                     }
                 }
             }
 
             // Штраф за відсутність голосних у довгому слові
-            if (lowerText.Length >= 3 && vowelCount == 0)
+            if (lowerText.Length >= NoVowelsMinimumWordLength && vowelCount == 0)
             {
-                score += 30;
+                score += NoVowelsPenalty;
             }
 
             // Штрафи за неприродні або заборонені комбінації
             if (!isEnglishLayout) // Українська
             {
-                if (lowerText.StartsWith("ь") || lowerText.StartsWith("и")) score += 50;
-                if (lowerText.Contains("ьь") || lowerText.Contains("йй") || lowerText.Contains("щщ")) score += 50;
-                if (lowerText.Contains("ьы") || lowerText.Contains("ы") || lowerText.Contains("э") || lowerText.Contains("ё") || lowerText.Contains("ъ")) score += 50; // російські літери
+                if (lowerText.StartsWith("ь") || lowerText.StartsWith("и")) score += ForbiddenCombinationPenalty;
+                if (lowerText.Contains("ьь") || lowerText.Contains("йй") || lowerText.Contains("щщ")) score += ForbiddenCombinationPenalty;
+                if (lowerText.Contains("ьы") || lowerText.Contains("ы") || lowerText.Contains("э") || lowerText.Contains("ё") || lowerText.Contains("ъ")) score += ForbiddenCombinationPenalty; // російські літери
             }
             else // Англійська
             {
-                if (lowerText.Contains("zx") || lowerText.Contains("jq") || lowerText.Contains("pq") || lowerText.Contains("qx") || lowerText.Contains("xz") || lowerText.Contains("qv")) score += 50;
-                if (lowerText.StartsWith("x") && lowerText.Length > 2 && !vowels.Contains(lowerText[1])) score += 30;
+                if (lowerText.Contains("zx") || lowerText.Contains("jq") || lowerText.Contains("pq") || lowerText.Contains("qx") || lowerText.Contains("xz") || lowerText.Contains("qv")) score += ForbiddenCombinationPenalty;
+                if (lowerText.StartsWith("x") && lowerText.Length > 2 && !vowels.Contains(lowerText[1])) score += UnlikelyLeadingXPenalty;
             }
 
             return score;

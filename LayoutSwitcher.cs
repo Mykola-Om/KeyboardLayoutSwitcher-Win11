@@ -10,6 +10,10 @@ namespace KeyboardLayoutSwitcher
         private const uint KLF_ACTIVATE = 0x00000001;
         private const int WM_INPUTLANGCHANGEREQUEST = 0x0050;
 
+        // KLID (Keyboard Layout ID) рядки для LoadKeyboardLayout.
+        private const string UkrainianKeyboardLayoutId = "00000422";
+        private const string EnglishUsKeyboardLayoutId = "00000409";
+
         [StructLayout(LayoutKind.Sequential)]
         public struct GUITHREADINFO
         {
@@ -59,12 +63,12 @@ namespace KeyboardLayoutSwitcher
 
             if (isEnglishLayout)
             {
-                IntPtr hkl = LoadKeyboardLayout("00000422", KLF_ACTIVATE); // Ukrainian
+                IntPtr hkl = LoadKeyboardLayout(UkrainianKeyboardLayoutId, KLF_ACTIVATE);
                 PostMessage(foregroundWindow, WM_INPUTLANGCHANGEREQUEST, IntPtr.Zero, hkl);
             }
             else
             {
-                IntPtr hkl = LoadKeyboardLayout("00000409", KLF_ACTIVATE); // English (US)
+                IntPtr hkl = LoadKeyboardLayout(EnglishUsKeyboardLayoutId, KLF_ACTIVATE);
                 PostMessage(foregroundWindow, WM_INPUTLANGCHANGEREQUEST, IntPtr.Zero, hkl);
             }
 

@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
@@ -101,7 +100,7 @@ namespace KeyboardLayoutSwitcher
                     wordTracker.Clear();
                     lock (processNameCacheLock)
                     {
-                        cachedProcessName = GetProcessName(foregroundWindow);
+                        cachedProcessName = ProcessNameResolver.GetProcessName(foregroundWindow);
                     }
                 }
 
@@ -240,36 +239,10 @@ namespace KeyboardLayoutSwitcher
                    vkCode == Win32Interop.VK_CAPITAL;
         }
 
-        private static string GetProcessName(IntPtr foregroundWindow)
-        {
-            if (foregroundWindow == IntPtr.Zero)
-            {
-                return string.Empty;
-            }
-
-            Win32Interop.GetWindowThreadProcessId(foregroundWindow, out uint processId);
-            if (processId == 0)
-            {
-                return string.Empty;
-            }
-
-            try
-            {
-                using (Process process = Process.GetProcessById((int)processId))
-                {
-                    return process.ProcessName;
-                }
-            }
-            catch
-            {
-                return string.Empty;
-            }
-        }
-
         private char GetCharFromKey(int vkCode, bool isEnglishKeyboardLayout)
         {
             bool isShiftPressed = IsKeyPressed(Win32Interop.VK_SHIFT) || IsKeyPressed(Win32Interop.VK_LSHIFT) || IsKeyPressed(Win32Interop.VK_RSHIFT);
-            bool isCapsLockEnabled = (Win32Interop.GetKeyState(Win32Interop.VK_CAPITAL) & 0x0001) != 0;
+            bool isCapsLockEnabled = (Win32Interop.GetKeyState(Win32Interop.VK_CAPITAL) & Win32Interop.KEYSTATE_TOGGLED) != 0;
 
             if (vkCode >= (int)Keys.A && vkCode <= (int)Keys.Z)
             {
@@ -296,7 +269,7 @@ namespace KeyboardLayoutSwitcher
 
         private static bool IsKeyPressed(int virtualKey)
         {
-            return (Win32Interop.GetKeyState(virtualKey) & 0x8000) != 0;
+            return (Win32Interop.GetKeyState(virtualKey) & Win32Interop.KEYSTATE_PRESSED) != 0;
         }
 
         public void Dispose()
