@@ -217,7 +217,9 @@ namespace KeyboardLayoutSwitcher
                 return false;
             }
 
-            return false;
+            // Якщо штрафи однакові, повертаємось до класичного підрахунку голосних як "тайбрейкера":
+            // у правильному слові кількість голосних не повинна впасти після конвертації.
+            return convertedVowelCount - sourceVowelCount >= 0;
         }
 
         private static int CalculateUnnaturalnessScore(string text, bool isEnglishLayout)

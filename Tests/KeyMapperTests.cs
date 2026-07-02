@@ -5,7 +5,6 @@ namespace KeyboardLayoutSwitcher.Tests
 {
     /// <summary>
     /// Unit tests for KeyMapper heuristics.
-    /// Run manually or integrate with your test runner.
     /// </summary>
     public class KeyMapperTests
     {
@@ -46,10 +45,20 @@ namespace KeyboardLayoutSwitcher.Tests
 
         private void TestIsWrongLayoutUkrainianToEnglish()
         {
-            // "ршщщ" typed in Ukrainian should be recognized as wrong layout
-            // because when converted to English, it would be "hello"
-            // (Actual mapping depends on keyboard layout, this is a placeholder)
-            Console.WriteLine("✓ Ukrainian→English detection (heuristic-based)");
+            // Take a known English dictionary word and derive what it would look
+            // like if the same physical keys were pressed while a Ukrainian layout
+            // was active. That garbled text, checked with isEnglishLayout=false,
+            // must be detected as wrong layout and convert back to the original word.
+            const string englishWord = "python"; // hardcoded in commonEnglishWords, no dictionary file dependency
+            string garbled = KeyMapper.ConvertWord(englishWord, isEnglishLayout: true);
+
+            bool result = KeyMapper.IsWrongLayout(garbled, isEnglishLayout: false, settings);
+            Assert(result, $"Expected garbled Ukrainian text '{garbled}' (from '{englishWord}') to be detected as wrong layout");
+
+            string convertedBack = KeyMapper.ConvertWord(garbled, isEnglishLayout: false);
+            Assert(convertedBack == englishWord, $"Expected '{garbled}' to convert back to '{englishWord}', got '{convertedBack}'");
+
+            Console.WriteLine("✓ Ukrainian→English detection works");
         }
 
         private void TestIsWrongLayoutValidEnglish()
@@ -114,14 +123,17 @@ namespace KeyboardLayoutSwitcher.Tests
 
         private void TestIgnoredWords()
         {
-            // Words in IgnoredWords should NOT be flagged as wrong layout
-            settings.IgnoredWordsText = "test\ncode";
+            // Use a fresh word (never checked before in this process) and register it
+            // as ignored BEFORE the first lookup. IsWrongLayout caches its result per
+            // word+layout, so checking an already-cached word here would pass for the
+            // wrong reason (stale cache) instead of exercising the ignore-list branch.
+            const string englishWord = "docker"; // hardcoded in commonEnglishWords
+            string garbled = KeyMapper.ConvertWord(englishWord, isEnglishLayout: true);
 
-            string word = "test";
-            bool result = KeyMapper.IsWrongLayout(word, isEnglishLayout: true, settings);
+            settings.IgnoredWordsText = garbled;
 
-            // Even if 'test' is valid English, we explicitly ignore it here
-            Assert(!result, $"Expected ignored word '{word}' to be skipped");
+            bool result = KeyMapper.IsWrongLayout(garbled, isEnglishLayout: false, settings);
+            Assert(!result, $"Expected ignored word '{garbled}' to be skipped");
             Console.WriteLine("✓ Ignored words list works");
         }
 
@@ -140,23 +152,6 @@ namespace KeyboardLayoutSwitcher.Tests
             if (!condition)
             {
                 throw new Exception($"FAIL: {message}");
-            }
-        }
-
-        // Entry point for running tests
-        public static void Main(string[] args)
-        {
-            try
-            {
-                var tests = new KeyMapperTests();
-                tests.RunAllTests();
-            }
-            catch (Exception ex)
-            {
-                Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine($"✗ Test failed: {ex.Message}");
-                Console.ResetColor();
-                Environment.Exit(1);
             }
         }
     }

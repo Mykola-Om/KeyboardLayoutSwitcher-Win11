@@ -119,21 +119,5 @@ namespace KeyboardLayoutSwitcher.Tests
                 throw new Exception($"FAIL: {message}");
             }
         }
-
-        public static void Main(string[] args)
-        {
-            try
-            {
-                var tests = new WordTrackerTests();
-                tests.RunAllTests();
-            }
-            catch (Exception ex)
-            {
-                Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine($"✗ Test failed: {ex.Message}");
-                Console.ResetColor();
-                Environment.Exit(1);
-            }
-        }
     }
 }

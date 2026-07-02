@@ -335,6 +335,7 @@ namespace KeyboardLayoutSwitcher
             if (!string.IsNullOrWhiteSpace(settings.IgnoredWordsText)) {
                 foreach (var w in settings.IgnoredWordsText.Split(new[] { '\r', '\n', ',' }, StringSplitOptions.RemoveEmptyEntries)) lstIgnoredWords.Items.Add(w.Trim());
             }
+            numMinimumMappedPercent.Value = Clamp(numMinimumMappedPercent, settings.MinimumMappedPercent);
 
             settings.StartWithWindows = chkStartWithWindows.Checked;
             isInitializing = false;

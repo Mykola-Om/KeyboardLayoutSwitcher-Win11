@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net472</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\KeyboardLayoutSwitcher.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\Dictionaries\en.txt" Link="Dictionaries\en.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Dictionaries\uk.txt" Link="Dictionaries\uk.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Dictionaries\tech.txt" Link="Dictionaries\tech.txt" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>
