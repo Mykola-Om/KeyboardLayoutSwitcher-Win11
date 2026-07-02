@@ -49,6 +49,7 @@
   <ItemGroup>
     <Compile Include="AppSettings.cs" />
     <Compile Include="AppSettingsStore.cs" />
+    <Compile Include="InputReplacer.cs" />
     <Compile Include="KeyboardHook.cs" />
     <Compile Include="KeyMapper.cs" />
     <Compile Include="LayoutSwitcher.cs" />
@@ -62,6 +63,8 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="StartupManager.cs" />
     <Compile Include="TraceLogger.cs" />
+    <Compile Include="Win32Interop.cs" />
+    <Compile Include="WordTracker.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />

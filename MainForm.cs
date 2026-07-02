@@ -49,13 +49,6 @@ namespace KeyboardLayoutSwitcher
             chkStartWithWindows.CheckedChanged += SettingsControlChanged;
             cmbProcessMode.SelectedIndexChanged += SettingsControlChanged;
             
-            
-            numMinimumMappedPercent.ValueChanged += SettingsControlChanged;
-            
-            // Завдяки гібридному словнику та новій системі штрафів налаштування чутливості 
-            // більше не потрібні користувачу, вони надійно працюють під капотом зі стандартними значеннями (80%).
-            grpHeuristic.Visible = false;
-            
             btnExit.Click += BtnExit_Click;
             btnAddProcess.Click += BtnAddProcess_Click;
             btnRemoveProcess.Click += BtnRemoveProcess_Click;
@@ -77,9 +70,7 @@ namespace KeyboardLayoutSwitcher
         {
             var tip = new ToolTip { AutoPopDelay = 15000, InitialDelay = 500, ReshowDelay = 100, ShowAlways = true };
 
-            AddInfoIcon(lblMinimumWordLength, numMinimumWordLength, tip, "Мінімальна кількість літер у слові, з якої починається перевірка.\r\nКоротші слова або окремі літери алгоритм проігнорує.");
             AddInfoIcon(lblMinimumMappedPercent, numMinimumMappedPercent, tip, "Який відсоток літер у слові має 'співпадати' з іншою розкладкою,\r\nщоб програма вирішила змінити мову. (напр. 80% - це майже все слово)");
-            AddInfoIcon(lblMinimumVowelDelta, numMinimumVowelDelta, tip, "Різниця голосних. Алгоритм очікує, що у 'правильному' слові\r\nбуде нормальна кількість голосних, а у 'неправильному' (абракадабрі) - замало або забагато.");
         }
 
         private void AddInfoIcon(Control label, Control input, ToolTip tip, string text)
@@ -344,9 +335,6 @@ namespace KeyboardLayoutSwitcher
             if (!string.IsNullOrWhiteSpace(settings.IgnoredWordsText)) {
                 foreach (var w in settings.IgnoredWordsText.Split(new[] { '\r', '\n', ',' }, StringSplitOptions.RemoveEmptyEntries)) lstIgnoredWords.Items.Add(w.Trim());
             }
-            numMinimumWordLength.Value = Clamp(numMinimumWordLength, settings.MinimumWordLength);
-            numMinimumMappedPercent.Value = Clamp(numMinimumMappedPercent, settings.MinimumMappedPercent);
-            numMinimumVowelDelta.Value = Clamp(numMinimumVowelDelta, settings.MinimumVowelDelta);
 
             settings.StartWithWindows = chkStartWithWindows.Checked;
             isInitializing = false;
@@ -357,11 +345,9 @@ namespace KeyboardLayoutSwitcher
             settings.IsSwitchingEnabled = chkEnableSwitching.Checked;
             settings.StartWithWindows = chkStartWithWindows.Checked;
             if (cmbProcessMode.SelectedIndex >= 0) settings.ProcessFilterMode = (ProcessFilterMode)cmbProcessMode.SelectedIndex;
-                        settings.ProcessFilterText = string.Join(Environment.NewLine, lstProcesses.Items.Cast<string>());
+            settings.ProcessFilterText = string.Join(Environment.NewLine, lstProcesses.Items.Cast<string>());
             settings.IgnoredWordsText = string.Join(Environment.NewLine, lstIgnoredWords.Items.Cast<string>());
-            settings.MinimumWordLength = (int)numMinimumWordLength.Value;
             settings.MinimumMappedPercent = (int)numMinimumMappedPercent.Value;
-            settings.MinimumVowelDelta = (int)numMinimumVowelDelta.Value;
 
             ApplyRuntimeSettings();
         }

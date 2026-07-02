@@ -188,8 +188,7 @@ namespace KeyboardLayoutSwitcher
                 return true;
             }
 
-            int minimumWordLength = 2; // override user settings to ensure short valid words work
-            if (word.Length < minimumWordLength)
+            if (word.Length < 2)
             {
                 return false;
             }
@@ -198,7 +197,6 @@ namespace KeyboardLayoutSwitcher
             int convertedVowelCount = CountVowels(convertedWord, isEnglishLayout ? ukrainianVowels : englishVowels);
 
             int minimumMappedPercent = Math.Max(1, Math.Min(100, settings?.MinimumMappedPercent ?? 80));
-            int minimumVowelDelta = settings?.MinimumVowelDelta ?? 0;
             int mappedThreshold = (int)Math.Ceiling(word.Length * minimumMappedPercent / 100.0);
 
             if (sourceMappedChars < mappedThreshold)
@@ -219,8 +217,7 @@ namespace KeyboardLayoutSwitcher
                 return false;
             }
 
-            // Якщо штрафи однакові, повертаємось до класичного підрахунку голосних як "тайбрейкера"
-            return convertedVowelCount - sourceVowelCount >= minimumVowelDelta;
+            return false;
         }
 
         private static int CalculateUnnaturalnessScore(string text, bool isEnglishLayout)

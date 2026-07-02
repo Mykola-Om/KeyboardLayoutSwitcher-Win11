@@ -1,30 +1,26 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.IO;
 using System.Runtime.InteropServices;
-using System.Text;
-using System.Threading;
 using System.Windows.Forms;
 
 namespace KeyboardLayoutSwitcher
 {
     public class KeyboardHook : IDisposable
     {
-        private static readonly Dictionary<int, char> englishLowerMap = CreateEnglishLowerMap();
-        private static readonly Dictionary<int, char> englishUpperMap = CreateEnglishUpperMap();
-        private static readonly Dictionary<int, char> ukrainianLowerMap = CreateUkrainianLowerMap();
-        private static readonly Dictionary<int, char> ukrainianUpperMap = CreateUkrainianUpperMap();
+        private static readonly System.Collections.Generic.Dictionary<int, char> englishLowerMap = CreateEnglishLowerMap();
+        private static readonly System.Collections.Generic.Dictionary<int, char> englishUpperMap = CreateEnglishUpperMap();
+        private static readonly System.Collections.Generic.Dictionary<int, char> ukrainianLowerMap = CreateUkrainianLowerMap();
+        private static readonly System.Collections.Generic.Dictionary<int, char> ukrainianUpperMap = CreateUkrainianUpperMap();
 
         private readonly AppSettings settings;
-        private readonly SynchronizationContext synchronizationContext;
         private IntPtr hookId = IntPtr.Zero;
         private IntPtr mouseHookId = IntPtr.Zero;
         private LowLevelKeyboardProc proc;
         private LowLevelMouseProc mouseProc;
         private bool isEnglishLayout;
-        private StringBuilder currentWord = new StringBuilder();
-        private bool isReplacing;
+        private readonly WordTracker wordTracker = new WordTracker();
+        private readonly InputReplacer inputReplacer = new InputReplacer();
         private IntPtr lastForegroundWindow = IntPtr.Zero;
         private string cachedProcessName = string.Empty;
         private readonly object processNameCacheLock = new object();
@@ -32,7 +28,6 @@ namespace KeyboardLayoutSwitcher
         public KeyboardHook(AppSettings settings)
         {
             this.settings = settings ?? new AppSettings();
-            synchronizationContext = SynchronizationContext.Current ?? new SynchronizationContext();
             proc = HookCallback;
             mouseProc = MouseHookCallback;
             isEnglishLayout = LayoutSwitcher.IsCurrentKeyboardLayoutEnglish();
@@ -56,24 +51,24 @@ namespace KeyboardLayoutSwitcher
         {
             if (hookId != IntPtr.Zero)
             {
-                UnhookWindowsHookEx(hookId);
+                Win32Interop.UnhookWindowsHookEx(hookId);
                 hookId = IntPtr.Zero;
             }
             if (mouseHookId != IntPtr.Zero)
             {
-                UnhookWindowsHookEx(mouseHookId);
+                Win32Interop.UnhookWindowsHookEx(mouseHookId);
                 mouseHookId = IntPtr.Zero;
             }
         }
 
         private IntPtr SetHook(LowLevelKeyboardProc proc)
         {
-            return SetWindowsHookEx(WH_KEYBOARD_LL, proc, IntPtr.Zero, 0);
+            return Win32Interop.SetWindowsHookEx(Win32Interop.WH_KEYBOARD_LL, proc, IntPtr.Zero, 0);
         }
 
         private IntPtr SetMouseHook(LowLevelMouseProc proc)
         {
-            return SetWindowsHookEx(WH_MOUSE_LL, proc, IntPtr.Zero, 0);
+            return Win32Interop.SetWindowsHookEx(Win32Interop.WH_MOUSE_LL, proc, IntPtr.Zero, 0);
         }
 
         private IntPtr MouseHookCallback(int nCode, IntPtr wParam, IntPtr lParam)
@@ -81,29 +76,29 @@ namespace KeyboardLayoutSwitcher
             if (nCode >= 0)
             {
                 int msg = (int)wParam;
-                if (msg == WM_LBUTTONDOWN || msg == WM_RBUTTONDOWN || msg == WM_MBUTTONDOWN)
+                if (msg == Win32Interop.WM_LBUTTONDOWN || msg == Win32Interop.WM_RBUTTONDOWN || msg == Win32Interop.WM_MBUTTONDOWN)
                 {
-                    currentWord.Clear();
+                    wordTracker.Clear();
                 }
             }
-            return CallNextHookEx(mouseHookId, nCode, wParam, lParam);
+            return Win32Interop.CallNextHookEx(mouseHookId, nCode, wParam, lParam);
         }
 
         private IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam)
         {
-            if (nCode >= 0 && ((wParam == (IntPtr)WM_KEYDOWN) || (wParam == (IntPtr)WM_SYSKEYDOWN)))
+            if (nCode >= 0 && ((wParam == (IntPtr)Win32Interop.WM_KEYDOWN) || (wParam == (IntPtr)Win32Interop.WM_SYSKEYDOWN)))
             {
-                KbdLlHookStruct hookData = Marshal.PtrToStructure<KbdLlHookStruct>(lParam);
-                if (isReplacing || (hookData.flags & LLKHF_INJECTED) == LLKHF_INJECTED)
+                Win32Interop.KbdLlHookStruct hookData = Marshal.PtrToStructure<Win32Interop.KbdLlHookStruct>(lParam);
+                if (inputReplacer.IsReplacing || (hookData.flags & Win32Interop.LLKHF_INJECTED) == Win32Interop.LLKHF_INJECTED)
                 {
-                    return CallNextHookEx(hookId, nCode, wParam, lParam);
+                    return Win32Interop.CallNextHookEx(hookId, nCode, wParam, lParam);
                 }
 
-                IntPtr foregroundWindow = GetForegroundWindow();
+                IntPtr foregroundWindow = Win32Interop.GetForegroundWindow();
                 if (foregroundWindow != lastForegroundWindow)
                 {
                     lastForegroundWindow = foregroundWindow;
-                    currentWord.Clear();
+                    wordTracker.Clear();
                     lock (processNameCacheLock)
                     {
                         cachedProcessName = GetProcessName(foregroundWindow);
@@ -112,55 +107,55 @@ namespace KeyboardLayoutSwitcher
 
                 if (!settings.IsProcessAllowed(cachedProcessName))
                 {
-                    currentWord.Clear();
-                    return CallNextHookEx(hookId, nCode, wParam, lParam);
+                    wordTracker.Clear();
+                    return Win32Interop.CallNextHookEx(hookId, nCode, wParam, lParam);
                 }
 
                 isEnglishLayout = LayoutSwitcher.IsCurrentKeyboardLayoutEnglish();
 
                 int vkCode = (int)hookData.vkCode;
-                if (vkCode == VK_RETURN)
+                if (vkCode == Win32Interop.VK_RETURN)
                 {
                     if (TryReplaceCurrentWordAtBoundary('\n', ref isEnglishLayout))
                     {
                         return (IntPtr)1;
                     }
 
-                    currentWord.Clear();
-                    return CallNextHookEx(hookId, nCode, wParam, lParam);
+                    wordTracker.Clear();
+                    return Win32Interop.CallNextHookEx(hookId, nCode, wParam, lParam);
                 }
 
-                if (vkCode == VK_TAB)
+                if (vkCode == Win32Interop.VK_TAB)
                 {
                     if (TryReplaceCurrentWordAtBoundary('\t', ref isEnglishLayout))
                     {
                         return (IntPtr)1;
                     }
 
-                    currentWord.Clear();
-                    return CallNextHookEx(hookId, nCode, wParam, lParam);
+                    wordTracker.Clear();
+                    return Win32Interop.CallNextHookEx(hookId, nCode, wParam, lParam);
                 }
 
                 if (HandleEditingKey(vkCode))
                 {
-                    return CallNextHookEx(hookId, nCode, wParam, lParam);
+                    return Win32Interop.CallNextHookEx(hookId, nCode, wParam, lParam);
                 }
 
-                bool isCtrlPressed = IsKeyPressed(VK_CONTROL) || IsKeyPressed(VK_LCONTROL) || IsKeyPressed(VK_RCONTROL);
-                bool isAltPressed = IsKeyPressed(VK_MENU) || IsKeyPressed(VK_LMENU) || IsKeyPressed(VK_RMENU);
-                bool isWinPressed = IsKeyPressed(VK_LWIN) || IsKeyPressed(VK_RWIN);
+                bool isCtrlPressed = IsKeyPressed(Win32Interop.VK_CONTROL) || IsKeyPressed(Win32Interop.VK_LCONTROL) || IsKeyPressed(Win32Interop.VK_RCONTROL);
+                bool isAltPressed = IsKeyPressed(Win32Interop.VK_MENU) || IsKeyPressed(Win32Interop.VK_LMENU) || IsKeyPressed(Win32Interop.VK_RMENU);
+                bool isWinPressed = IsKeyPressed(Win32Interop.VK_LWIN) || IsKeyPressed(Win32Interop.VK_RWIN);
 
                 if (isCtrlPressed || isAltPressed || isWinPressed)
                 {
-                    currentWord.Clear();
-                    return CallNextHookEx(hookId, nCode, wParam, lParam);
+                    wordTracker.Clear();
+                    return Win32Interop.CallNextHookEx(hookId, nCode, wParam, lParam);
                 }
 
                 char ch = GetCharFromKey(vkCode, isEnglishLayout);
 
                 if (KeyMapper.IsLayoutWordCharacter(ch, isEnglishLayout))
                 {
-                    currentWord.Append(ch);
+                    wordTracker.AppendChar(ch);
                 }
                 else if (char.IsWhiteSpace(ch) || char.IsPunctuation(ch))
                 {
@@ -170,44 +165,36 @@ namespace KeyboardLayoutSwitcher
                         return (IntPtr)1;
                     }
 
-                    currentWord.Clear();
+                    wordTracker.Clear();
                 }
                 else if (!IsModifierKey(vkCode))
                 {
-                    currentWord.Clear();
+                    wordTracker.Clear();
                 }
             }
-            return CallNextHookEx(hookId, nCode, wParam, lParam);
+            return Win32Interop.CallNextHookEx(hookId, nCode, wParam, lParam);
         }
 
         private bool HandleEditingKey(int vkCode)
         {
-            if (vkCode == VK_BACK)
+            if (vkCode == Win32Interop.VK_BACK)
             {
-                if (currentWord.Length > 0)
-                {
-                    currentWord.Length -= 1;
-                }
-                else
-                {
-                    currentWord.Clear();
-                }
-
+                wordTracker.RemoveLastChar();
                 return true;
             }
 
-            if (vkCode == VK_DELETE ||
-                vkCode == VK_ESCAPE ||
-                vkCode == VK_LEFT ||
-                vkCode == VK_RIGHT ||
-                vkCode == VK_UP ||
-                vkCode == VK_DOWN ||
-                vkCode == VK_HOME ||
-                vkCode == VK_END ||
-                vkCode == VK_PRIOR ||
-                vkCode == VK_NEXT)
+            if (vkCode == Win32Interop.VK_DELETE ||
+                vkCode == Win32Interop.VK_ESCAPE ||
+                vkCode == Win32Interop.VK_LEFT ||
+                vkCode == Win32Interop.VK_RIGHT ||
+                vkCode == Win32Interop.VK_UP ||
+                vkCode == Win32Interop.VK_DOWN ||
+                vkCode == Win32Interop.VK_HOME ||
+                vkCode == Win32Interop.VK_END ||
+                vkCode == Win32Interop.VK_PRIOR ||
+                vkCode == Win32Interop.VK_NEXT)
             {
-                currentWord.Clear();
+                wordTracker.Clear();
                 return true;
             }
 
@@ -216,12 +203,11 @@ namespace KeyboardLayoutSwitcher
 
         private bool TryReplaceCurrentWordAtBoundary(char boundaryChar, ref bool currentLayoutIsEnglish)
         {
-            if (currentWord.Length == 0)
+            if (!wordTracker.TryGetWordAtBoundary(out string word))
             {
                 return false;
             }
 
-            string word = currentWord.ToString();
             if (!KeyMapper.IsWrongLayout(word, currentLayoutIsEnglish, settings))
             {
                 return false;
@@ -233,133 +219,25 @@ namespace KeyboardLayoutSwitcher
             bool oldLayout = currentLayoutIsEnglish;
             currentLayoutIsEnglish = !currentLayoutIsEnglish;
 
-            QueueReplacement(word.Length, correctedWord, boundaryChar, oldLayout);
-            currentWord.Clear();
+            inputReplacer.QueueReplacement(word.Length, correctedWord, boundaryChar, oldLayout);
+            wordTracker.Clear();
             return true;
-        }
-
-        private void QueueReplacement(int originalLength, string correctedWord, char boundaryChar, bool oldLayout)
-        {
-            isReplacing = true;
-            synchronizationContext.Post(_ =>
-            {
-                try
-                {
-                    bool dummyLayout = oldLayout;
-                    LayoutSwitcher.SwitchKeyboardLayout(ref dummyLayout);
-
-                    Thread.Sleep(10);
-
-                    List<INPUT> inputs = new List<INPUT>();
-
-                    for (int i = 0; i < originalLength; i++)
-                    {
-                        inputs.Add(CreateKeyInput(VK_BACK, false));
-                        inputs.Add(CreateKeyInput(VK_BACK, true));
-                    }
-
-                    foreach (char c in correctedWord)
-                    {
-                        inputs.AddRange(CreateUnicodeInput(c));
-                    }
-
-                    if (boundaryChar == '\r' || boundaryChar == '\n')
-                    {
-                        inputs.Add(CreateKeyInput(VK_RETURN, false));
-                        inputs.Add(CreateKeyInput(VK_RETURN, true));
-                    }
-                    else if (boundaryChar == '\t')
-                    {
-                        inputs.Add(CreateKeyInput(VK_TAB, false));
-                        inputs.Add(CreateKeyInput(VK_TAB, true));
-                    }
-                    else if (boundaryChar != '\0')
-                    {
-                        inputs.AddRange(CreateUnicodeInput(boundaryChar));
-                    }
-
-                    SendInput((uint)inputs.Count, inputs.ToArray(), Marshal.SizeOf(typeof(INPUT)));
-                }
-                catch (Exception e)
-                {
-                    TraceLogger.Trace($"Error in replacement: {e.Message}");
-                }
-                finally
-                {
-                    isReplacing = false;
-                }
-            }, null);
-        }
-
-        private static INPUT CreateKeyInput(short wVk, bool isKeyUp)
-        {
-            return new INPUT
-            {
-                type = INPUT_KEYBOARD,
-                u = new InputUnion
-                {
-                    ki = new KEYBDINPUT
-                    {
-                        wVk = (ushort)wVk,
-                        dwFlags = isKeyUp ? KEYEVENTF_KEYUP : 0,
-                        time = 0,
-                        dwExtraInfo = IntPtr.Zero
-                    }
-                }
-            };
-        }
-
-        private static INPUT[] CreateUnicodeInput(char c)
-        {
-            INPUT down = new INPUT
-            {
-                type = INPUT_KEYBOARD,
-                u = new InputUnion
-                {
-                    ki = new KEYBDINPUT
-                    {
-                        wVk = 0,
-                        wScan = c,
-                        dwFlags = KEYEVENTF_UNICODE,
-                        time = 0,
-                        dwExtraInfo = IntPtr.Zero
-                    }
-                }
-            };
-
-            INPUT up = new INPUT
-            {
-                type = INPUT_KEYBOARD,
-                u = new InputUnion
-                {
-                    ki = new KEYBDINPUT
-                    {
-                        wVk = 0,
-                        wScan = c,
-                        dwFlags = KEYEVENTF_UNICODE | KEYEVENTF_KEYUP,
-                        time = 0,
-                        dwExtraInfo = IntPtr.Zero
-                    }
-                }
-            };
-
-            return new[] { down, up };
         }
 
         private static bool IsModifierKey(int vkCode)
         {
-            return vkCode == VK_SHIFT ||
-                   vkCode == VK_LSHIFT ||
-                   vkCode == VK_RSHIFT ||
-                   vkCode == VK_CONTROL ||
-                   vkCode == VK_LCONTROL ||
-                   vkCode == VK_RCONTROL ||
-                   vkCode == VK_MENU ||
-                   vkCode == VK_LMENU ||
-                   vkCode == VK_RMENU ||
-                   vkCode == VK_LWIN ||
-                   vkCode == VK_RWIN ||
-                   vkCode == VK_CAPITAL;
+            return vkCode == Win32Interop.VK_SHIFT ||
+                   vkCode == Win32Interop.VK_LSHIFT ||
+                   vkCode == Win32Interop.VK_RSHIFT ||
+                   vkCode == Win32Interop.VK_CONTROL ||
+                   vkCode == Win32Interop.VK_LCONTROL ||
+                   vkCode == Win32Interop.VK_RCONTROL ||
+                   vkCode == Win32Interop.VK_MENU ||
+                   vkCode == Win32Interop.VK_LMENU ||
+                   vkCode == Win32Interop.VK_RMENU ||
+                   vkCode == Win32Interop.VK_LWIN ||
+                   vkCode == Win32Interop.VK_RWIN ||
+                   vkCode == Win32Interop.VK_CAPITAL;
         }
 
         private static string GetProcessName(IntPtr foregroundWindow)
@@ -369,7 +247,7 @@ namespace KeyboardLayoutSwitcher
                 return string.Empty;
             }
 
-            GetWindowThreadProcessId(foregroundWindow, out uint processId);
+            Win32Interop.GetWindowThreadProcessId(foregroundWindow, out uint processId);
             if (processId == 0)
             {
                 return string.Empty;
@@ -390,8 +268,8 @@ namespace KeyboardLayoutSwitcher
 
         private char GetCharFromKey(int vkCode, bool isEnglishKeyboardLayout)
         {
-            bool isShiftPressed = IsKeyPressed(VK_SHIFT) || IsKeyPressed(VK_LSHIFT) || IsKeyPressed(VK_RSHIFT);
-            bool isCapsLockEnabled = (GetKeyState(VK_CAPITAL) & 0x0001) != 0;
+            bool isShiftPressed = IsKeyPressed(Win32Interop.VK_SHIFT) || IsKeyPressed(Win32Interop.VK_LSHIFT) || IsKeyPressed(Win32Interop.VK_RSHIFT);
+            bool isCapsLockEnabled = (Win32Interop.GetKeyState(Win32Interop.VK_CAPITAL) & 0x0001) != 0;
 
             if (vkCode >= (int)Keys.A && vkCode <= (int)Keys.Z)
             {
@@ -404,7 +282,7 @@ namespace KeyboardLayoutSwitcher
 
         private static char GetMappedChar(int vkCode, bool isEnglishKeyboardLayout, bool useUpperCase)
         {
-            Dictionary<int, char> map = isEnglishKeyboardLayout
+            System.Collections.Generic.Dictionary<int, char> map = isEnglishKeyboardLayout
                 ? (useUpperCase ? englishUpperMap : englishLowerMap)
                 : (useUpperCase ? ukrainianUpperMap : ukrainianLowerMap);
 
@@ -416,145 +294,19 @@ namespace KeyboardLayoutSwitcher
             return '\0';
         }
 
+        private static bool IsKeyPressed(int virtualKey)
+        {
+            return (Win32Interop.GetKeyState(virtualKey) & 0x8000) != 0;
+        }
+
         public void Dispose()
         {
             Stop();
         }
 
-        // WinAPI functions and constants.
+        // Hook delegates
         private delegate IntPtr LowLevelKeyboardProc(int nCode, IntPtr wParam, IntPtr lParam);
         private delegate IntPtr LowLevelMouseProc(int nCode, IntPtr wParam, IntPtr lParam);
-
-        private const int WH_KEYBOARD_LL = 13;
-        private const int WH_MOUSE_LL = 14;
-        private const int WM_KEYDOWN = 0x0100;
-        private const int WM_SYSKEYDOWN = 0x0104;
-        private const int WM_LBUTTONDOWN = 0x0201;
-        private const int WM_RBUTTONDOWN = 0x0204;
-        private const int WM_MBUTTONDOWN = 0x0207;
-        private const uint LLKHF_INJECTED = 0x00000010;
-        private const int VK_BACK = 0x08;
-        private const int VK_TAB = 0x09;
-        private const int VK_RETURN = 0x0D;
-        private const int VK_SPACE = 0x20;
-        private const int VK_SHIFT = 0x10;
-        private const int VK_CONTROL = 0x11;
-        private const int VK_MENU = 0x12;
-        private const int VK_CAPITAL = 0x14;
-        private const int VK_ESCAPE = 0x1B;
-        private const int VK_PRIOR = 0x21;
-        private const int VK_NEXT = 0x22;
-        private const int VK_END = 0x23;
-        private const int VK_HOME = 0x24;
-        private const int VK_LEFT = 0x25;
-        private const int VK_UP = 0x26;
-        private const int VK_RIGHT = 0x27;
-        private const int VK_DOWN = 0x28;
-        private const int VK_DELETE = 0x2E;
-        private const int VK_LSHIFT = 0xA0;
-        private const int VK_RSHIFT = 0xA1;
-        private const int VK_LCONTROL = 0xA2;
-        private const int VK_RCONTROL = 0xA3;
-        private const int VK_LMENU = 0xA4;
-        private const int VK_RMENU = 0xA5;
-        private const int VK_LWIN = 0x5B;
-        private const int VK_RWIN = 0x5C;
-        private const int VK_OEM_1 = 0xBA;
-        private const int VK_OEM_PLUS = 0xBB;
-        private const int VK_OEM_COMMA = 0xBC;
-        private const int VK_OEM_MINUS = 0xBD;
-        private const int VK_OEM_PERIOD = 0xBE;
-        private const int VK_OEM_2 = 0xBF;
-        private const int VK_OEM_3 = 0xC0;
-        private const int VK_OEM_4 = 0xDB;
-        private const int VK_OEM_5 = 0xDC;
-        private const int VK_OEM_6 = 0xDD;
-        private const int VK_OEM_7 = 0xDE;
-
-        private const int INPUT_KEYBOARD = 1;
-        private const uint KEYEVENTF_KEYUP = 0x0002;
-        private const uint KEYEVENTF_UNICODE = 0x0004;
-
-        [StructLayout(LayoutKind.Sequential)]
-        private struct INPUT
-        {
-            public int type;
-            public InputUnion u;
-        }
-
-        [StructLayout(LayoutKind.Explicit)]
-        private struct InputUnion
-        {
-            [FieldOffset(0)] public KEYBDINPUT ki;
-            [FieldOffset(0)] public MOUSEINPUT mi;
-            [FieldOffset(0)] public HARDWAREINPUT hi;
-        }
-
-        [StructLayout(LayoutKind.Sequential)]
-        private struct KEYBDINPUT
-        {
-            public ushort wVk;
-            public ushort wScan;
-            public uint dwFlags;
-            public uint time;
-            public IntPtr dwExtraInfo;
-        }
-
-        [StructLayout(LayoutKind.Sequential)]
-        private struct MOUSEINPUT
-        {
-            public int dx;
-            public int dy;
-            public uint mouseData;
-            public uint dwFlags;
-            public uint time;
-            public IntPtr dwExtraInfo;
-        }
-
-        [StructLayout(LayoutKind.Sequential)]
-        private struct HARDWAREINPUT
-        {
-            public uint uMsg;
-            public ushort wParamL;
-            public ushort wParamH;
-        }
-
-        [StructLayout(LayoutKind.Sequential)]
-        private struct KbdLlHookStruct
-        {
-            public uint vkCode;
-            public uint scanCode;
-            public uint flags;
-            public uint time;
-            public UIntPtr dwExtraInfo;
-        }
-
-        [DllImport("user32.dll", SetLastError = true)]
-        private static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
-
-        [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
-        private static extern IntPtr SetWindowsHookEx(int idHook,
-            Delegate lpfn, IntPtr hMod, uint dwThreadId);
-
-        [DllImport("user32.dll", SetLastError = true)]
-        private static extern bool UnhookWindowsHookEx(IntPtr hhk);
-
-        [DllImport("user32.dll", SetLastError = true)]
-        private static extern IntPtr CallNextHookEx(IntPtr hhk,
-            int nCode, IntPtr wParam, IntPtr lParam);
-        [DllImport("user32.dll")]
-        private static extern short GetKeyState(int nVirtKey);
-
-        [DllImport("user32.dll")]
-        private static extern IntPtr GetForegroundWindow();
-
-        [DllImport("user32.dll")]
-        private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
-
-        private static bool IsKeyPressed(int virtualKey)
-        {
-            return (GetKeyState(virtualKey) & 0x8000) != 0;
-        }
 
         private static Dictionary<int, char> CreateEnglishLowerMap()
         {
@@ -567,11 +319,11 @@ namespace KeyboardLayoutSwitcher
                 [(int)Keys.Q] = 'q', [(int)Keys.R] = 'r', [(int)Keys.S] = 's', [(int)Keys.T] = 't',
                 [(int)Keys.U] = 'u', [(int)Keys.V] = 'v', [(int)Keys.W] = 'w', [(int)Keys.X] = 'x',
                 [(int)Keys.Y] = 'y', [(int)Keys.Z] = 'z',
-                [VK_OEM_4] = '[', [VK_OEM_6] = ']', [VK_OEM_1] = ';', [VK_OEM_7] = '\'',
-                [VK_OEM_COMMA] = ',', [VK_OEM_PERIOD] = '.', [VK_SPACE] = ' ',
+                [Win32Interop.VK_OEM_4] = '[', [Win32Interop.VK_OEM_6] = ']', [Win32Interop.VK_OEM_1] = ';', [Win32Interop.VK_OEM_7] = '\'',
+                [Win32Interop.VK_OEM_COMMA] = ',', [Win32Interop.VK_OEM_PERIOD] = '.', [Win32Interop.VK_SPACE] = ' ',
                 [(int)Keys.D1] = '1', [(int)Keys.D2] = '2', [(int)Keys.D3] = '3', [(int)Keys.D4] = '4', [(int)Keys.D5] = '5',
                 [(int)Keys.D6] = '6', [(int)Keys.D7] = '7', [(int)Keys.D8] = '8', [(int)Keys.D9] = '9', [(int)Keys.D0] = '0',
-                [VK_OEM_MINUS] = '-', [VK_OEM_PLUS] = '=', [VK_OEM_2] = '/', [VK_OEM_3] = '`', [VK_OEM_5] = '\\'
+                [Win32Interop.VK_OEM_MINUS] = '-', [Win32Interop.VK_OEM_PLUS] = '=', [Win32Interop.VK_OEM_2] = '/', [Win32Interop.VK_OEM_3] = '`', [Win32Interop.VK_OEM_5] = '\\'
             };
         }
 
@@ -586,11 +338,11 @@ namespace KeyboardLayoutSwitcher
                 [(int)Keys.Q] = 'Q', [(int)Keys.R] = 'R', [(int)Keys.S] = 'S', [(int)Keys.T] = 'T',
                 [(int)Keys.U] = 'U', [(int)Keys.V] = 'V', [(int)Keys.W] = 'W', [(int)Keys.X] = 'X',
                 [(int)Keys.Y] = 'Y', [(int)Keys.Z] = 'Z',
-                [VK_OEM_4] = '{', [VK_OEM_6] = '}', [VK_OEM_1] = ':', [VK_OEM_7] = '"',
-                [VK_OEM_COMMA] = '<', [VK_OEM_PERIOD] = '>', [VK_SPACE] = ' ',
+                [Win32Interop.VK_OEM_4] = '{', [Win32Interop.VK_OEM_6] = '}', [Win32Interop.VK_OEM_1] = ':', [Win32Interop.VK_OEM_7] = '"',
+                [Win32Interop.VK_OEM_COMMA] = '<', [Win32Interop.VK_OEM_PERIOD] = '>', [Win32Interop.VK_SPACE] = ' ',
                 [(int)Keys.D1] = '!', [(int)Keys.D2] = '@', [(int)Keys.D3] = '#', [(int)Keys.D4] = '$', [(int)Keys.D5] = '%',
                 [(int)Keys.D6] = '^', [(int)Keys.D7] = '&', [(int)Keys.D8] = '*', [(int)Keys.D9] = '(', [(int)Keys.D0] = ')',
-                [VK_OEM_MINUS] = '_', [VK_OEM_PLUS] = '+', [VK_OEM_2] = '?', [VK_OEM_3] = '~', [VK_OEM_5] = '|'
+                [Win32Interop.VK_OEM_MINUS] = '_', [Win32Interop.VK_OEM_PLUS] = '+', [Win32Interop.VK_OEM_2] = '?', [Win32Interop.VK_OEM_3] = '~', [Win32Interop.VK_OEM_5] = '|'
             };
         }
 
@@ -606,11 +358,11 @@ namespace KeyboardLayoutSwitcher
                 [(int)Keys.L] = 'д',
                 [(int)Keys.Z] = 'я', [(int)Keys.X] = 'ч', [(int)Keys.C] = 'с', [(int)Keys.V] = 'м',
                 [(int)Keys.B] = 'и', [(int)Keys.N] = 'т', [(int)Keys.M] = 'ь',
-                [VK_OEM_4] = 'х', [VK_OEM_6] = 'ї', [VK_OEM_1] = 'ж', [VK_OEM_7] = 'є',
-                [VK_OEM_COMMA] = 'б', [VK_OEM_PERIOD] = 'ю', [VK_SPACE] = ' ',
+                [Win32Interop.VK_OEM_4] = 'х', [Win32Interop.VK_OEM_6] = 'ї', [Win32Interop.VK_OEM_1] = 'ж', [Win32Interop.VK_OEM_7] = 'є',
+                [Win32Interop.VK_OEM_COMMA] = 'б', [Win32Interop.VK_OEM_PERIOD] = 'ю', [Win32Interop.VK_SPACE] = ' ',
                 [(int)Keys.D1] = '1', [(int)Keys.D2] = '2', [(int)Keys.D3] = '3', [(int)Keys.D4] = '4', [(int)Keys.D5] = '5',
                 [(int)Keys.D6] = '6', [(int)Keys.D7] = '7', [(int)Keys.D8] = '8', [(int)Keys.D9] = '9', [(int)Keys.D0] = '0',
-                [VK_OEM_MINUS] = '-', [VK_OEM_PLUS] = '=', [VK_OEM_2] = '.', [VK_OEM_3] = '\'', [VK_OEM_5] = '\\'
+                [Win32Interop.VK_OEM_MINUS] = '-', [Win32Interop.VK_OEM_PLUS] = '=', [Win32Interop.VK_OEM_2] = '.', [Win32Interop.VK_OEM_3] = '\'', [Win32Interop.VK_OEM_5] = '\\'
             };
         }
 
@@ -626,11 +378,11 @@ namespace KeyboardLayoutSwitcher
                 [(int)Keys.L] = 'Д',
                 [(int)Keys.Z] = 'Я', [(int)Keys.X] = 'Ч', [(int)Keys.C] = 'С', [(int)Keys.V] = 'М',
                 [(int)Keys.B] = 'И', [(int)Keys.N] = 'Т', [(int)Keys.M] = 'Ь',
-                [VK_OEM_4] = 'Х', [VK_OEM_6] = 'Ї', [VK_OEM_1] = 'Ж', [VK_OEM_7] = 'Є',
-                [VK_OEM_COMMA] = 'Б', [VK_OEM_PERIOD] = 'Ю', [VK_SPACE] = ' ',
+                [Win32Interop.VK_OEM_4] = 'Х', [Win32Interop.VK_OEM_6] = 'Ї', [Win32Interop.VK_OEM_1] = 'Ж', [Win32Interop.VK_OEM_7] = 'Є',
+                [Win32Interop.VK_OEM_COMMA] = 'Б', [Win32Interop.VK_OEM_PERIOD] = 'Ю', [Win32Interop.VK_SPACE] = ' ',
                 [(int)Keys.D1] = '!', [(int)Keys.D2] = '"', [(int)Keys.D3] = '№', [(int)Keys.D4] = ';', [(int)Keys.D5] = '%',
                 [(int)Keys.D6] = ':', [(int)Keys.D7] = '?', [(int)Keys.D8] = '*', [(int)Keys.D9] = '(', [(int)Keys.D0] = ')',
-                [VK_OEM_MINUS] = '_', [VK_OEM_PLUS] = '+', [VK_OEM_2] = ',', [VK_OEM_3] = '₴', [VK_OEM_5] = '/'
+                [Win32Interop.VK_OEM_MINUS] = '_', [Win32Interop.VK_OEM_PLUS] = '+', [Win32Interop.VK_OEM_2] = ',', [Win32Interop.VK_OEM_3] = '₴', [Win32Interop.VK_OEM_5] = '/'
             };
         }
     }

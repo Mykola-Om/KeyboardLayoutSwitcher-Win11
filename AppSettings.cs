@@ -47,11 +47,7 @@ namespace KeyboardLayoutSwitcher
             }
         }
 
-        public int MinimumWordLength { get; set; } = 2;
-
         public int MinimumMappedPercent { get; set; } = 80;
-
-        public int MinimumVowelDelta { get; set; } = 0;
 
         [XmlIgnore]
         public HashSet<string> ProcessNames
