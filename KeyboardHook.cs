@@ -18,7 +18,6 @@ namespace KeyboardLayoutSwitcher
 
         private readonly AppSettings settings;
         private readonly SynchronizationContext synchronizationContext;
-        private readonly string logPath;
         private IntPtr hookId = IntPtr.Zero;
         private IntPtr mouseHookId = IntPtr.Zero;
         private LowLevelKeyboardProc proc;
@@ -27,29 +26,30 @@ namespace KeyboardLayoutSwitcher
         private StringBuilder currentWord = new StringBuilder();
         private bool isReplacing;
         private IntPtr lastForegroundWindow = IntPtr.Zero;
+        private string cachedProcessName = string.Empty;
+        private readonly object processNameCacheLock = new object();
 
         public KeyboardHook(AppSettings settings)
         {
             this.settings = settings ?? new AppSettings();
             synchronizationContext = SynchronizationContext.Current ?? new SynchronizationContext();
-            logPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "KeyboardLayoutSwitcher", "trace.log");
             proc = HookCallback;
             mouseProc = MouseHookCallback;
             isEnglishLayout = LayoutSwitcher.IsCurrentKeyboardLayoutEnglish();
-            Trace("KeyboardHook initialized");
+            TraceLogger.Trace("KeyboardHook initialized");
         }
 
         public void Start()
         {
             if (hookId != IntPtr.Zero)
             {
-                Trace("Start skipped: hook already active");
+                TraceLogger.Trace("Start skipped: hook already active");
                 return;
             }
 
             hookId = SetHook(proc);
             mouseHookId = SetMouseHook(mouseProc);
-            Trace("Start hook result: " + hookId + " | lastError=" + Marshal.GetLastWin32Error());
+            TraceLogger.Trace("Start hook result: " + hookId + " | lastError=" + Marshal.GetLastWin32Error());
         }
 
         public void Stop()
@@ -104,9 +104,13 @@ namespace KeyboardLayoutSwitcher
                 {
                     lastForegroundWindow = foregroundWindow;
                     currentWord.Clear();
+                    lock (processNameCacheLock)
+                    {
+                        cachedProcessName = GetProcessName(foregroundWindow);
+                    }
                 }
 
-                if (!settings.IsProcessAllowed(GetProcessName(foregroundWindow)))
+                if (!settings.IsProcessAllowed(cachedProcessName))
                 {
                     currentWord.Clear();
                     return CallNextHookEx(hookId, nCode, wParam, lParam);
@@ -157,14 +161,12 @@ namespace KeyboardLayoutSwitcher
                 if (KeyMapper.IsLayoutWordCharacter(ch, isEnglishLayout))
                 {
                     currentWord.Append(ch);
-                    Trace("Append letter: " + ch + " | word=" + currentWord);
                 }
                 else if (char.IsWhiteSpace(ch) || char.IsPunctuation(ch))
                 {
-                    Trace("Boundary: " + ((int)ch) + " | word=" + currentWord);
                     if (TryReplaceCurrentWordAtBoundary(ch, ref isEnglishLayout))
                     {
-                        Trace("Boundary swallowed for replacement");
+                        TraceLogger.Trace("Boundary swallowed for replacement");
                         return (IntPtr)1;
                     }
 
@@ -220,15 +222,13 @@ namespace KeyboardLayoutSwitcher
             }
 
             string word = currentWord.ToString();
-            Trace("Try replace | word=" + word + " | english=" + currentLayoutIsEnglish);
             if (!KeyMapper.IsWrongLayout(word, currentLayoutIsEnglish, settings))
             {
-                Trace("Rejected by heuristic | word=" + word);
                 return false;
             }
 
             string correctedWord = KeyMapper.ConvertWord(word, currentLayoutIsEnglish);
-            Trace("Accepted | word=" + word + " | corrected=" + correctedWord);
+            TraceLogger.Trace($"Replacement: len={word.Length}");
 
             bool oldLayout = currentLayoutIsEnglish;
             currentLayoutIsEnglish = !currentLayoutIsEnglish;
@@ -241,35 +241,28 @@ namespace KeyboardLayoutSwitcher
         private void QueueReplacement(int originalLength, string correctedWord, char boundaryChar, bool oldLayout)
         {
             isReplacing = true;
-            Trace("Queue replacement | len=" + originalLength + " | corrected=" + correctedWord + " | boundary=" + (int)boundaryChar);
             synchronizationContext.Post(_ =>
             {
                 try
                 {
-                    Trace("Execute replacement start");
-                    
                     bool dummyLayout = oldLayout;
                     LayoutSwitcher.SwitchKeyboardLayout(ref dummyLayout);
-                    
-                    // We can reduce sleep or remove it because Unicode input doesn't depend on layout
+
                     Thread.Sleep(10);
 
                     List<INPUT> inputs = new List<INPUT>();
 
-                    // 1. Remove original word
                     for (int i = 0; i < originalLength; i++)
                     {
                         inputs.Add(CreateKeyInput(VK_BACK, false));
                         inputs.Add(CreateKeyInput(VK_BACK, true));
                     }
 
-                    // 2. Type corrected word
                     foreach (char c in correctedWord)
                     {
                         inputs.AddRange(CreateUnicodeInput(c));
                     }
 
-                    // 3. Type boundary character
                     if (boundaryChar == '\r' || boundaryChar == '\n')
                     {
                         inputs.Add(CreateKeyInput(VK_RETURN, false));
@@ -286,12 +279,10 @@ namespace KeyboardLayoutSwitcher
                     }
 
                     SendInput((uint)inputs.Count, inputs.ToArray(), Marshal.SizeOf(typeof(INPUT)));
-                    
-                    Trace("Execute replacement done");
                 }
                 catch (Exception e)
                 {
-                    Trace("Error in replacement: " + e.Message);
+                    TraceLogger.Trace($"Error in replacement: {e.Message}");
                 }
                 finally
                 {
@@ -355,17 +346,6 @@ namespace KeyboardLayoutSwitcher
             return new[] { down, up };
         }
 
-        private void Trace(string message)
-        {
-            try
-            {
-                Directory.CreateDirectory(Path.GetDirectoryName(logPath));
-                File.AppendAllText(logPath, DateTime.Now.ToString("HH:mm:ss.fff") + " | " + message + Environment.NewLine);
-            }
-            catch
-            {
-            }
-        }
         private static bool IsModifierKey(int vkCode)
         {
             return vkCode == VK_SHIFT ||

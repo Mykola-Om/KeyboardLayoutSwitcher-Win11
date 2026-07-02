@@ -35,7 +35,7 @@ namespace KeyboardLayoutSwitcher
             GUITHREADINFO gui = new GUITHREADINFO();
             gui.cbSize = Marshal.SizeOf(gui);
             IntPtr keyboardLayout;
-            
+
             if (GetGUIThreadInfo(0, ref gui) && gui.hwndFocus != IntPtr.Zero)
             {
                 uint threadId = GetWindowThreadProcessId(gui.hwndFocus, IntPtr.Zero);
@@ -50,7 +50,6 @@ namespace KeyboardLayoutSwitcher
 
             uint keyboardLayoutId = (uint)keyboardLayout & 0xFFFF;
             bool result = (keyboardLayoutId & PrimaryLanguageMask) == EnglishPrimaryLanguageId;
-            System.IO.File.AppendAllText(@"C:\Users\ommiv\AppData\Local\KeyboardLayoutSwitcher\trace.log", "HKL: " + keyboardLayout.ToString("X") + " | result: " + result + "\r\n");
             return result;
         }
 

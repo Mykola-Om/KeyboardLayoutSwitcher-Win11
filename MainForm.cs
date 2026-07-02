@@ -27,14 +27,6 @@ namespace KeyboardLayoutSwitcher
         private bool isInitializing;
         private bool isExiting;
         private int countdownValue;
-        protected override void WndProc(ref Message m)
-        {
-            if (m.Msg == 0x0050) // WM_INPUTLANGCHANGE
-            {
-                System.IO.File.AppendAllText("C:\\Users\\ommiv\\AppData\\Local\\KeyboardLayoutSwitcher\\trace.log", "WM_INPUTLANGCHANGE: " + m.LParam.ToString("X") + "\r\n");
-            }
-            base.WndProc(ref m);
-        }
 
         public MainForm()
         {

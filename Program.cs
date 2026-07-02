@@ -34,7 +34,9 @@ namespace KeyboardLayoutSwitcher
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
 
-            // Запускаємо головну форму
+            AppSettings settings = AppSettingsStore.Load();
+            TraceLogger.Initialize(settings.EnableTrace);
+
             Application.Run(new MainForm());
 
             // Важливо звільнити Mutex після завершення роботи

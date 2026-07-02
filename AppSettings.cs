@@ -16,23 +16,35 @@ namespace KeyboardLayoutSwitcher
     {
         private string processFilterText = string.Empty;
         private string ignoredWordsText = string.Empty;
+        private HashSet<string> cachedProcessNames;
+        private HashSet<string> cachedIgnoredWords;
 
         public bool IsSwitchingEnabled { get; set; } = true;
 
         public bool StartWithWindows { get; set; }
+
+        public bool EnableTrace { get; set; } = false;
 
         public ProcessFilterMode ProcessFilterMode { get; set; } = ProcessFilterMode.Disabled;
 
         public string ProcessFilterText
         {
             get { return processFilterText; }
-            set { processFilterText = value ?? string.Empty; }
+            set
+            {
+                processFilterText = value ?? string.Empty;
+                cachedProcessNames = null;
+            }
         }
 
         public string IgnoredWordsText
         {
             get { return ignoredWordsText; }
-            set { ignoredWordsText = value ?? string.Empty; }
+            set
+            {
+                ignoredWordsText = value ?? string.Empty;
+                cachedIgnoredWords = null;
+            }
         }
 
         public int MinimumWordLength { get; set; } = 2;
@@ -42,30 +54,40 @@ namespace KeyboardLayoutSwitcher
         public int MinimumVowelDelta { get; set; } = 0;
 
         [XmlIgnore]
-        public IReadOnlyCollection<string> ProcessNames
+        public HashSet<string> ProcessNames
         {
             get
             {
-                return ProcessFilterText
-                    .Split(new[] { '\r', '\n', ',', ';' }, StringSplitOptions.RemoveEmptyEntries)
-                    .Select(NormalizeProcessName)
-                    .Where(name => !string.IsNullOrWhiteSpace(name))
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .ToArray();
+                if (cachedProcessNames == null)
+                {
+                    cachedProcessNames = new HashSet<string>(
+                        ProcessFilterText
+                            .Split(new[] { '\r', '\n', ',', ';' }, StringSplitOptions.RemoveEmptyEntries)
+                            .Select(NormalizeProcessName)
+                            .Where(name => !string.IsNullOrWhiteSpace(name))
+                            .Distinct(StringComparer.OrdinalIgnoreCase),
+                        StringComparer.OrdinalIgnoreCase);
+                }
+                return cachedProcessNames;
             }
         }
 
         [XmlIgnore]
-        public IReadOnlyCollection<string> IgnoredWords
+        public HashSet<string> IgnoredWords
         {
             get
             {
-                return IgnoredWordsText
-                    .Split(new[] { '\r', '\n', ',', ';' }, StringSplitOptions.RemoveEmptyEntries)
-                    .Select(word => word.Trim())
-                    .Where(word => !string.IsNullOrWhiteSpace(word))
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .ToArray();
+                if (cachedIgnoredWords == null)
+                {
+                    cachedIgnoredWords = new HashSet<string>(
+                        IgnoredWordsText
+                            .Split(new[] { '\r', '\n', ',', ';' }, StringSplitOptions.RemoveEmptyEntries)
+                            .Select(word => word.Trim())
+                            .Where(word => !string.IsNullOrWhiteSpace(word))
+                            .Distinct(StringComparer.OrdinalIgnoreCase),
+                        StringComparer.OrdinalIgnoreCase);
+                }
+                return cachedIgnoredWords;
             }
         }
 
@@ -77,8 +99,7 @@ namespace KeyboardLayoutSwitcher
             }
 
             string normalizedProcessName = NormalizeProcessName(processName);
-            bool isListed = new HashSet<string>(ProcessNames, StringComparer.OrdinalIgnoreCase)
-                .Contains(normalizedProcessName);
+            bool isListed = ProcessNames.Contains(normalizedProcessName);
 
             return ProcessFilterMode == ProcessFilterMode.Whitelist ? isListed : !isListed;
         }
