@@ -1,5 +1,6 @@
 using System;
 using System.Runtime.InteropServices;
+using System.Text;
 
 namespace KeyboardLayoutSwitcher
 {
@@ -167,5 +168,18 @@ namespace KeyboardLayoutSwitcher
 
         [DllImport("user32.dll")]
         public static extern bool IsWindow(IntPtr hWnd);
+
+        // Опитування розкладки: який символ дає клавіша в конкретній розкладці.
+        public const uint MAPVK_VK_TO_VSC = 0;
+
+        // Просити ToUnicodeEx не змінювати стан клавіатури (Windows 10 1607+). Без цього
+        // виклик усередині хука може з'їдати dead-key стан у наступних натискань.
+        public const uint TOUNICODE_NO_KEYBOARD_STATE_CHANGE = 0x04;
+
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+        public static extern int ToUnicodeEx(uint wVirtKey, uint wScanCode, byte[] lpKeyState, StringBuilder pwszBuff, int cchBuff, uint wFlags, IntPtr dwhkl);
+
+        [DllImport("user32.dll")]
+        public static extern uint MapVirtualKeyEx(uint uCode, uint uMapType, IntPtr dwhkl);
     }
 }

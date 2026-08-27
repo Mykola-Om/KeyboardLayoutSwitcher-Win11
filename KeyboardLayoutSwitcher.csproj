@@ -51,6 +51,7 @@
     <Compile Include="AppSettingsStore.cs" />
     <Compile Include="InputReplacer.cs" />
     <Compile Include="KeyboardHook.cs" />
+    <Compile Include="KeyboardLayoutMap.cs" />
     <Compile Include="KeyMapper.cs" />
     <Compile Include="LayoutRuleEnforcer.cs" />
     <Compile Include="LayoutSwitcher.cs" />

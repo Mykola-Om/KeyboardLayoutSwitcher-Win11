@@ -383,6 +383,14 @@ namespace KeyboardLayoutSwitcher
 
         private static char GetMappedChar(int vkCode, bool isEnglishKeyboardLayout, bool useUpperCase)
         {
+            // Питаємо саму розкладку; таблиці нижче лишаються запасним варіантом на випадок,
+            // коли потрібної розкладки в системі немає.
+            char queriedCharacter = KeyboardLayoutMap.GetChar(vkCode, isEnglishKeyboardLayout, useUpperCase);
+            if (queriedCharacter != '\0')
+            {
+                return queriedCharacter;
+            }
+
             System.Collections.Generic.Dictionary<int, char> map = isEnglishKeyboardLayout
                 ? (useUpperCase ? englishUpperMap : englishLowerMap)
                 : (useUpperCase ? ukrainianUpperMap : ukrainianLowerMap);
