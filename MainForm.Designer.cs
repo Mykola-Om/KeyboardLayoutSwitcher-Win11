@@ -16,13 +16,8 @@ namespace KeyboardLayoutSwitcher
         private ToolStripMenuItem menuItemPause;
         private ToolStripSeparator toolStripSeparator1;
         private ToolStripMenuItem menuItemExit;
-        private GroupBox grpHeuristic;
-        private Label lblMinimumWordLength;
-        private NumericUpDown numMinimumWordLength;
         private Label lblMinimumMappedPercent;
         private NumericUpDown numMinimumMappedPercent;
-        private Label lblMinimumVowelDelta;
-        private NumericUpDown numMinimumVowelDelta;
         
         private GroupBox grpProcesses;
         private Label lblProcessMode;
@@ -79,13 +74,8 @@ namespace KeyboardLayoutSwitcher
             this.toolStripSeparator1 = new System.Windows.Forms.ToolStripSeparator();
             this.menuItemExit = new System.Windows.Forms.ToolStripMenuItem();
             
-            this.grpHeuristic = new System.Windows.Forms.GroupBox();
-            this.lblMinimumWordLength = new System.Windows.Forms.Label();
             this.lblMinimumMappedPercent = new System.Windows.Forms.Label();
-            this.lblMinimumVowelDelta = new System.Windows.Forms.Label();
-            this.numMinimumWordLength = new System.Windows.Forms.NumericUpDown();
             this.numMinimumMappedPercent = new System.Windows.Forms.NumericUpDown();
-            this.numMinimumVowelDelta = new System.Windows.Forms.NumericUpDown();
             
             this.grpProcesses = new System.Windows.Forms.GroupBox();
             this.lblProcessMode = new System.Windows.Forms.Label();
@@ -116,10 +106,7 @@ namespace KeyboardLayoutSwitcher
             this.btnAddIgnoredWord = new System.Windows.Forms.Button();
             this.btnRemoveIgnoredWord = new System.Windows.Forms.Button();
 
-            ((System.ComponentModel.ISupportInitialize)(this.numMinimumWordLength)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.numMinimumMappedPercent)).BeginInit();
-            ((System.ComponentModel.ISupportInitialize)(this.numMinimumVowelDelta)).BeginInit();
-            this.grpHeuristic.SuspendLayout();
             this.grpProcesses.SuspendLayout();
             this.grpIgnoredWords.SuspendLayout();
             this.grpLayoutRules.SuspendLayout();
@@ -204,69 +191,23 @@ namespace KeyboardLayoutSwitcher
             this.notifyIcon.ContextMenuStrip = this.contextMenuStrip;
             this.notifyIcon.Text = "Перемикач розкладки";
 
-            // grpHeuristic
-            this.grpHeuristic.Controls.Add(this.lblMinimumWordLength);
-            this.grpHeuristic.Controls.Add(this.numMinimumWordLength);
-            this.grpHeuristic.Controls.Add(this.lblMinimumMappedPercent);
-            this.grpHeuristic.Controls.Add(this.numMinimumMappedPercent);
-            this.grpHeuristic.Controls.Add(this.lblMinimumVowelDelta);
-            this.grpHeuristic.Controls.Add(this.numMinimumVowelDelta);
-            this.grpHeuristic.Location = new System.Drawing.Point(12, 500);
-            this.grpHeuristic.Name = "grpHeuristic";
-            this.grpHeuristic.Visible = false;
-            this.grpHeuristic.Size = new System.Drawing.Size(508, 108);
-            this.grpHeuristic.TabIndex = 3;
-            this.grpHeuristic.TabStop = false;
-            this.grpHeuristic.Text = "Чутливість алгоритму";
-
-            // lblMinimumWordLength
-            this.lblMinimumWordLength.AutoSize = true;
-            this.lblMinimumWordLength.Location = new System.Drawing.Point(14, 29);
-            this.lblMinimumWordLength.Name = "lblMinimumWordLength";
-            this.lblMinimumWordLength.Size = new System.Drawing.Size(120, 15);
-            this.lblMinimumWordLength.TabIndex = 0;
-            this.lblMinimumWordLength.Text = "Мін. довжина слова";
-
-            // numMinimumWordLength
-            this.numMinimumWordLength.Location = new System.Drawing.Point(200, 27);
-            this.numMinimumWordLength.Maximum = new decimal(new int[] { 12, 0, 0, 0 });
-            this.numMinimumWordLength.Minimum = new decimal(new int[] { 1, 0, 0, 0 });
-            this.numMinimumWordLength.Name = "numMinimumWordLength";
-            this.numMinimumWordLength.Size = new System.Drawing.Size(72, 23);
-            this.numMinimumWordLength.TabIndex = 1;
-            this.numMinimumWordLength.Value = new decimal(new int[] { 3, 0, 0, 0 });
-
-            // lblMinimumMappedPercent
+            // Відсоток розпізнавання — єдине живе налаштування колишньої групи
+            // "Чутливість алгоритму"; сама група була прихована, тож регулятор
+            // лишався недосяжним, хоч і мав підказку. Решта її полів ні на що не впливали.
             this.lblMinimumMappedPercent.AutoSize = true;
-            this.lblMinimumMappedPercent.Location = new System.Drawing.Point(14, 56);
+            this.lblMinimumMappedPercent.Location = new System.Drawing.Point(285, 40);
             this.lblMinimumMappedPercent.Name = "lblMinimumMappedPercent";
             this.lblMinimumMappedPercent.Size = new System.Drawing.Size(135, 15);
-            this.lblMinimumMappedPercent.TabIndex = 2;
+            this.lblMinimumMappedPercent.TabIndex = 3;
             this.lblMinimumMappedPercent.Text = "Відсоток розпізнавання";
 
             // numMinimumMappedPercent
-            this.numMinimumMappedPercent.Location = new System.Drawing.Point(200, 54);
+            this.numMinimumMappedPercent.Location = new System.Drawing.Point(450, 37);
             this.numMinimumMappedPercent.Minimum = new decimal(new int[] { 10, 0, 0, 0 });
             this.numMinimumMappedPercent.Name = "numMinimumMappedPercent";
-            this.numMinimumMappedPercent.Size = new System.Drawing.Size(72, 23);
-            this.numMinimumMappedPercent.TabIndex = 3;
+            this.numMinimumMappedPercent.Size = new System.Drawing.Size(60, 23);
+            this.numMinimumMappedPercent.TabIndex = 4;
             this.numMinimumMappedPercent.Value = new decimal(new int[] { 80, 0, 0, 0 });
-
-            // lblMinimumVowelDelta
-            this.lblMinimumVowelDelta.AutoSize = true;
-            this.lblMinimumVowelDelta.Location = new System.Drawing.Point(14, 83);
-            this.lblMinimumVowelDelta.Name = "lblMinimumVowelDelta";
-            this.lblMinimumVowelDelta.Size = new System.Drawing.Size(131, 15);
-            this.lblMinimumVowelDelta.TabIndex = 4;
-            this.lblMinimumVowelDelta.Text = "Точність за голосними";
-
-            // numMinimumVowelDelta
-            this.numMinimumVowelDelta.Location = new System.Drawing.Point(200, 81);
-            this.numMinimumVowelDelta.Maximum = new decimal(new int[] { 5, 0, 0, 0 });
-            this.numMinimumVowelDelta.Name = "numMinimumVowelDelta";
-            this.numMinimumVowelDelta.Size = new System.Drawing.Size(72, 23);
-            this.numMinimumVowelDelta.TabIndex = 5;
-            this.numMinimumVowelDelta.Value = new decimal(new int[] { 1, 0, 0, 0 });
 
             // grpProcesses
             this.grpProcesses.Controls.Add(this.lblProcessMode);
@@ -482,9 +423,10 @@ namespace KeyboardLayoutSwitcher
             this.Controls.Add(this.grpLayoutRules);
             this.Controls.Add(this.grpEnterCorrection);
             this.Controls.Add(this.grpProcesses);
-            this.Controls.Add(this.grpHeuristic);
             this.Controls.Add(this.lblStatus);
             this.Controls.Add(this.chkRestoreApostrophes);
+            this.Controls.Add(this.lblMinimumMappedPercent);
+            this.Controls.Add(this.numMinimumMappedPercent);
             this.Controls.Add(this.chkStartWithWindows);
             this.Controls.Add(this.chkEnableSwitching);
             this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.FixedSingle;
@@ -494,11 +436,7 @@ namespace KeyboardLayoutSwitcher
             this.Text = "Перемикач розкладки";
             this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.MainForm_FormClosing);
             
-            ((System.ComponentModel.ISupportInitialize)(this.numMinimumWordLength)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.numMinimumMappedPercent)).EndInit();
-            ((System.ComponentModel.ISupportInitialize)(this.numMinimumVowelDelta)).EndInit();
-            this.grpHeuristic.ResumeLayout(false);
-            this.grpHeuristic.PerformLayout();
             this.grpProcesses.ResumeLayout(false);
             this.grpProcesses.PerformLayout();
             this.grpIgnoredWords.ResumeLayout(false);

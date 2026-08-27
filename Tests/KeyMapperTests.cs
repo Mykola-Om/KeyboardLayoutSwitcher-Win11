@@ -42,6 +42,7 @@ namespace KeyboardLayoutSwitcher.Tests
             TestExcludePathSlashes();
             TestKeepUkrainianWordsWithBalancedVowels();
             TestStillConvertsMistypedUkrainianWords();
+            TestCacheKeepsBoundaryContextSeparate();
             TestRestoresMissingApostrophe();
             TestRestoreApostrophePreservesCase();
             TestDoesNotTouchWordsThatNeedNoApostrophe();
@@ -83,6 +84,31 @@ namespace KeyboardLayoutSwitcher.Tests
             }
 
             Console.WriteLine("✓ Mistyped Ukrainian words are still corrected");
+        }
+
+        /// <summary>
+        /// The verdict depends on the surrounding boundary characters, so the cache must key
+        /// on them too. Otherwise whichever context was seen first wins for every later one:
+        /// a plain word would poison ".word", and vice versa.
+        /// </summary>
+        private void TestCacheKeepsBoundaryContextSeparate()
+        {
+            KeyMapper.ClearCache();
+            bool plainFirst = KeyMapper.IsWrongLayout("cnfnec", isEnglishLayout: true, settings);
+            bool dottedAfter = KeyMapper.IsWrongLayout("cnfnec", true, settings, '\0', '.');
+
+            Assert(plainFirst, "Expected plain 'cnfnec' to be detected as wrong layout");
+            Assert(!dottedAfter, "Expected '.cnfnec' to stay untouched even after the plain word was cached");
+
+            // Той самий сценарій у зворотному порядку.
+            KeyMapper.ClearCache();
+            bool dottedFirst = KeyMapper.IsWrongLayout("cnfnec", true, settings, '\0', '.');
+            bool plainAfter = KeyMapper.IsWrongLayout("cnfnec", isEnglishLayout: true, settings);
+
+            Assert(!dottedFirst, "Expected '.cnfnec' to be left alone");
+            Assert(plainAfter, "Expected plain 'cnfnec' to still be corrected after the dotted form was cached");
+
+            Console.WriteLine("✓ Cache keeps boundary contexts apart");
         }
 
         private void TestRestoresMissingApostrophe()

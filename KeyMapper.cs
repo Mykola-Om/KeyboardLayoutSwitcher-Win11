@@ -325,16 +325,48 @@ namespace KeyboardLayoutSwitcher
             }
 
             var cache = isEnglishLayout ? enCache : ukCache;
-            if (cache.TryGetValue(word, out bool cachedResult))
+            string cacheKey = BuildCacheKey(word, boundaryChar, lastBoundaryChar);
+            if (cache.TryGetValue(cacheKey, out bool cachedResult))
             {
                 return cachedResult;
             }
 
             bool result = CalculateIsWrongLayout(word, isEnglishLayout, settings, boundaryChar, lastBoundaryChar);
 
-            cache.Set(word, result);
+            cache.Set(cacheKey, result);
 
             return result;
+        }
+
+        // Символи-межі, від яких залежить вердикт: на них тримаються правила для крапкових
+        // файлів, ALL_CAPS-змінних, шляхів і camelCase. Решта меж (пробіл, кома…) на
+        // результат не впливає, тому в ключ кешу не потрапляє — інакше він розросся б
+        // на кожен розділовий знак.
+        private static readonly char[] contextSensitiveBoundaries = { '.', '_', '/', '\\', '\u0001' };
+
+        // Роздільник у ключі кешу; у словах не трапляється.
+        private const char CacheKeySeparator = '\u0002';
+
+        /// <summary>
+        /// Ключ кешу мусить враховувати межові символи: без них вердикт для "cnfnec"
+        /// після крапки перекривав би вердикт для звичайного "cnfnec" і навпаки.
+        /// </summary>
+        private static string BuildCacheKey(string word, char boundaryChar, char lastBoundaryChar)
+        {
+            char boundary = NormalizeBoundaryForCache(boundaryChar);
+            char lastBoundary = NormalizeBoundaryForCache(lastBoundaryChar);
+
+            if (boundary == '\0' && lastBoundary == '\0')
+            {
+                return word;
+            }
+
+            return word + CacheKeySeparator + boundary + lastBoundary;
+        }
+
+        private static char NormalizeBoundaryForCache(char boundaryChar)
+        {
+            return Array.IndexOf(contextSensitiveBoundaries, boundaryChar) >= 0 ? boundaryChar : '\0';
         }
 
         private static bool CalculateIsWrongLayout(string word, bool isEnglishLayout, AppSettings settings, char boundaryChar, char lastBoundaryChar)
