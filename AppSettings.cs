@@ -24,10 +24,27 @@ namespace KeyboardLayoutSwitcher
         // текст однаково (раніше MainForm використовував інший набір без ';').
         public static readonly char[] ListDelimiters = { '\r', '\n', ',', ';' };
 
+        // Роздільник між іменем процесу та бажаною розкладкою в LayoutRulesText ("telegram=uk").
+        public const char LayoutRuleSeparator = '=';
+
+        // Позначки розкладок у правилах. Модель бінарна (англійська / українська),
+        // як і решта застосунку.
+        public const string EnglishLayoutTag = "en";
+        public const string UkrainianLayoutTag = "uk";
+
         private string processFilterText = string.Empty;
         private string ignoredWordsText = string.Empty;
+        private string layoutRulesText = string.Empty;
+        private string skipEnterCorrectionProcessesText = DefaultSkipEnterCorrectionProcesses;
         private HashSet<string> cachedProcessNames;
         private HashSet<string> cachedIgnoredWords;
+        private Dictionary<string, bool> cachedLayoutRules;
+        private HashSet<string> cachedSkipEnterCorrectionProcesses;
+
+        // Браузери, де Enter в адресному рядку підтверджує автодоповнення. Виправлення саме
+        // на Enter там шкідливе: ми ковтаємо Enter, стираємо набране й вводимо свій варіант,
+        // а браузер до того моменту вже втратив підказку і виконує пошук замість переходу.
+        public const string DefaultSkipEnterCorrectionProcesses = "chrome, msedge, firefox, brave, opera, vivaldi";
 
         public bool IsSwitchingEnabled { get; set; } = true;
 
@@ -61,6 +78,121 @@ namespace KeyboardLayoutSwitcher
         }
 
         public int MinimumMappedPercent { get; set; } = DefaultMinimumMappedPercent;
+
+        // Правила "процес=розкладка", по одному в рядку ("telegram=uk", "code=en").
+        public string LayoutRulesText
+        {
+            get { return layoutRulesText; }
+            set
+            {
+                layoutRulesText = value ?? string.Empty;
+                cachedLayoutRules = null;
+            }
+        }
+
+        // Вмикає застосування LayoutRules при перемиканні активного вікна.
+        public bool EnableLayoutRules { get; set; } = true;
+
+        // Вимикає виправлення слова, коли межею є Enter, у перелічених програмах.
+        public bool SkipEnterCorrection { get; set; } = true;
+
+        public string SkipEnterCorrectionProcessesText
+        {
+            get { return skipEnterCorrectionProcessesText; }
+            set
+            {
+                skipEnterCorrectionProcessesText = value ?? string.Empty;
+                cachedSkipEnterCorrectionProcesses = null;
+            }
+        }
+
+        [XmlIgnore]
+        public HashSet<string> SkipEnterCorrectionProcesses
+        {
+            get
+            {
+                if (cachedSkipEnterCorrectionProcesses == null)
+                {
+                    cachedSkipEnterCorrectionProcesses = ParseList(SkipEnterCorrectionProcessesText, NormalizeProcessName);
+                }
+                return cachedSkipEnterCorrectionProcesses;
+            }
+        }
+
+        /// <summary>
+        /// Чи слід пропустити виправлення слова, коли межею стало натискання Enter.
+        /// </summary>
+        public bool IsEnterCorrectionSkipped(string processName)
+        {
+            return SkipEnterCorrection && SkipEnterCorrectionProcesses.Contains(NormalizeProcessName(processName));
+        }
+
+        /// <summary>
+        /// Розібрані правила: нормалізоване ім'я процесу -> чи має бути англійська розкладка.
+        /// </summary>
+        [XmlIgnore]
+        public Dictionary<string, bool> LayoutRules
+        {
+            get
+            {
+                if (cachedLayoutRules == null)
+                {
+                    cachedLayoutRules = ParseLayoutRules(LayoutRulesText);
+                }
+                return cachedLayoutRules;
+            }
+        }
+
+        private static Dictionary<string, bool> ParseLayoutRules(string text)
+        {
+            var rules = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (string entry in text.Split(ListDelimiters, StringSplitOptions.RemoveEmptyEntries))
+            {
+                int separatorIndex = entry.IndexOf(LayoutRuleSeparator);
+                if (separatorIndex <= 0)
+                {
+                    continue; // Рядок без розкладки — правило неповне, ігноруємо
+                }
+
+                string processName = NormalizeProcessName(entry.Substring(0, separatorIndex));
+                string layoutTag = entry.Substring(separatorIndex + 1).Trim();
+
+                if (string.IsNullOrWhiteSpace(processName))
+                {
+                    continue;
+                }
+
+                if (layoutTag.Equals(EnglishLayoutTag, StringComparison.OrdinalIgnoreCase))
+                {
+                    rules[processName] = true;
+                }
+                else if (layoutTag.Equals(UkrainianLayoutTag, StringComparison.OrdinalIgnoreCase))
+                {
+                    rules[processName] = false;
+                }
+            }
+
+            return rules;
+        }
+
+        /// <summary>
+        /// Бажана розкладка для процесу, або null, якщо правила для нього немає.
+        /// </summary>
+        public bool? GetDesiredLayoutIsEnglish(string processName)
+        {
+            if (!EnableLayoutRules)
+            {
+                return null;
+            }
+
+            if (LayoutRules.TryGetValue(NormalizeProcessName(processName), out bool isEnglish))
+            {
+                return isEnglish;
+            }
+
+            return null;
+        }
 
         [XmlIgnore]
         public HashSet<string> ProcessNames

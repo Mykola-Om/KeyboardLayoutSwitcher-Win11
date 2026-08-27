@@ -59,20 +59,40 @@ namespace KeyboardLayoutSwitcher
 
         public static void SwitchKeyboardLayout(ref bool isEnglishLayout)
         {
-            IntPtr foregroundWindow = GetForegroundWindow();
-
-            if (isEnglishLayout)
-            {
-                IntPtr hkl = LoadKeyboardLayout(UkrainianKeyboardLayoutId, KLF_ACTIVATE);
-                PostMessage(foregroundWindow, WM_INPUTLANGCHANGEREQUEST, IntPtr.Zero, hkl);
-            }
-            else
-            {
-                IntPtr hkl = LoadKeyboardLayout(EnglishUsKeyboardLayoutId, KLF_ACTIVATE);
-                PostMessage(foregroundWindow, WM_INPUTLANGCHANGEREQUEST, IntPtr.Zero, hkl);
-            }
-
+            SetKeyboardLayout(GetForegroundWindow(), !isEnglishLayout);
             isEnglishLayout = !isEnglishLayout;
+        }
+
+        /// <summary>
+        /// Виставляє конкретну розкладку у вказаному вікні (на відміну від
+        /// <see cref="SwitchKeyboardLayout"/>, який просто перемикає на протилежну).
+        /// Повідомлення надсилається асинхронно, тож одразу читати результат назад не можна.
+        /// </summary>
+        public static void SetKeyboardLayout(IntPtr window, bool english)
+        {
+            if (window == IntPtr.Zero)
+            {
+                return;
+            }
+
+            IntPtr hkl = LoadKeyboardLayout(english ? EnglishUsKeyboardLayoutId : UkrainianKeyboardLayoutId, KLF_ACTIVATE);
+            PostMessage(window, WM_INPUTLANGCHANGEREQUEST, IntPtr.Zero, hkl);
+        }
+
+        /// <summary>
+        /// Розкладка конкретного вікна. Windows може тримати розкладку окремо для кожного
+        /// вікна, тому перевіряти треба саме те вікно, яке нас цікавить.
+        /// </summary>
+        public static bool IsLayoutEnglishForWindow(IntPtr window)
+        {
+            if (window == IntPtr.Zero)
+            {
+                return IsCurrentKeyboardLayoutEnglish();
+            }
+
+            uint threadId = GetWindowThreadProcessId(window, IntPtr.Zero);
+            uint keyboardLayoutId = (uint)GetKeyboardLayout(threadId) & 0xFFFF;
+            return (keyboardLayoutId & PrimaryLanguageMask) == EnglishPrimaryLanguageId;
         }
 
         // WinAPI functions.

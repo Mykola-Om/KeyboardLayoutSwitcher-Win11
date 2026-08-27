@@ -52,6 +52,7 @@
     <Compile Include="InputReplacer.cs" />
     <Compile Include="KeyboardHook.cs" />
     <Compile Include="KeyMapper.cs" />
+    <Compile Include="LayoutRuleEnforcer.cs" />
     <Compile Include="LayoutSwitcher.cs" />
     <Compile Include="MainForm.cs">
       <SubType>Form</SubType>

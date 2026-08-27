@@ -18,9 +18,14 @@ namespace KeyboardLayoutSwitcher
 
         private readonly AppSettings settings;
         private KeyboardHook keyboardHook;
+        private LayoutRuleEnforcer layoutRuleEnforcer;
         private bool isInitializing;
         private bool isExiting;
         private int countdownValue;
+
+        // Яка кнопка зараз веде зворотний відлік і що зробити з обраним вікном.
+        private Button pickButton;
+        private Action<IntPtr, string> pickCompleted;
 
         public static MainForm Instance { get; private set; }
 
@@ -32,6 +37,7 @@ namespace KeyboardLayoutSwitcher
 
             // Initialize the global keyboard hook.
             keyboardHook = new KeyboardHook(settings);
+            layoutRuleEnforcer = new LayoutRuleEnforcer(settings);
 
             // Configure tray icon. Extract from the compiled exe so we don't need dedicated external files.
             Icon exeIcon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
@@ -40,18 +46,27 @@ namespace KeyboardLayoutSwitcher
             notifyIcon.Visible = true;
             notifyIcon.ContextMenuStrip = contextMenuStrip;
             cmbProcessMode.Items.AddRange(new object[] { "Вимкнено", "Працювати тільки у вибраних", "Працювати всюди, крім вибраних" });
+            cmbNewLayoutRuleLayout.Items.AddRange(new object[] { "Укр", "Англ" });
+            cmbNewLayoutRuleLayout.SelectedIndex = 0;
 
             // Wire events.
             chkEnableSwitching.CheckedChanged += ChkEnableSwitching_CheckedChanged;
             chkStartWithWindows.CheckedChanged += SettingsControlChanged;
             chkRestoreApostrophes.CheckedChanged += SettingsControlChanged;
             cmbProcessMode.SelectedIndexChanged += SettingsControlChanged;
+            chkEnableLayoutRules.CheckedChanged += SettingsControlChanged;
+            chkSkipEnterCorrection.CheckedChanged += SettingsControlChanged;
+            txtSkipEnterProcesses.Leave += SettingsControlChanged;
             
             btnExit.Click += BtnExit_Click;
             btnAddProcess.Click += BtnAddProcess_Click;
             btnRemoveProcess.Click += BtnRemoveProcess_Click;
             btnAddIgnoredWord.Click += BtnAddIgnoredWord_Click;
             btnRemoveIgnoredWord.Click += BtnRemoveIgnoredWord_Click;
+            btnAddLayoutRule.Click += BtnAddLayoutRule_Click;
+            btnRemoveLayoutRule.Click += BtnRemoveLayoutRule_Click;
+            txtNewLayoutRuleProcess.KeyDown += TxtNewLayoutRuleProcess_KeyDown;
+            btnPickActiveLayoutRule.Click += BtnPickActiveLayoutRule_Click;
             txtNewProcess.KeyDown += TxtNewProcess_KeyDown;
             txtNewIgnoredWord.KeyDown += TxtNewIgnoredWord_KeyDown;
             notifyIcon.DoubleClick += NotifyIcon_DoubleClick;
@@ -69,6 +84,10 @@ namespace KeyboardLayoutSwitcher
             var tip = new ToolTip { AutoPopDelay = 15000, InitialDelay = 500, ReshowDelay = 100, ShowAlways = true };
 
             AddInfoIcon(lblMinimumMappedPercent, numMinimumMappedPercent, tip, "Який відсоток літер у слові має 'співпадати' з іншою розкладкою,\r\nщоб програма вирішила змінити мову. (напр. 80% - це майже все слово)");
+
+            tip.SetToolTip(chkRestoreApostrophes, "Додає пропущений апостроф в українських словах:\r\nпамять → пам'ять, компютер → комп'ютер, сімя → сім'я.\r\nПрацює за словником, тож слова без апострофа (свято, цвях) не чіпає.");
+            tip.SetToolTip(chkSkipEnterCorrection, "У адресному рядку браузера Enter підтверджує підказку автодоповнення.\r\nЯкщо втрутитись саме там, браузер піде шукати замість переходу на сайт.\r\nПеречисли процеси через кому. В інших програмах Enter працює як раніше.");
+            tip.SetToolTip(chkEnableLayoutRules, "Коли ти переходиш у вікно програми зі списку,\r\nрозкладка автоматично стає заданою.\r\nЯкщо перемкнеш її вручну — це вікно більше не чіпається.");
         }
 
         private void AddInfoIcon(Control label, Control input, ToolTip tip, string text)
@@ -134,9 +153,17 @@ namespace KeyboardLayoutSwitcher
                 control.BackColor = Color.FromArgb(43, 43, 43);
                 control.ForeColor = Color.White;
             }
-            else if (control is CheckBox || control is GroupBox)
+            else if (control is GroupBox)
+            {
+                // Тему тут не застосовуємо: з DarkMode_Explorer заголовок рамки малює
+                // система власним темним кольором, ігноруючи ForeColor, і він зливається
+                // з фоном. Без теми GroupBox малює підпис сам — уже нашим кольором.
+                control.ForeColor = Color.White;
+            }
+            else if (control is CheckBox)
             {
                 SetWindowTheme(control.Handle, "DarkMode_Explorer", null);
+                control.ForeColor = Color.White;
             }
             else if (control is Button btn)
             {
@@ -241,11 +268,86 @@ namespace KeyboardLayoutSwitcher
             SettingsControlChanged(null, EventArgs.Empty);
         }
 
+        private void BtnAddLayoutRule_Click(object sender, EventArgs e)
+        {
+            string processName = AppSettings.NormalizeProcessName(txtNewLayoutRuleProcess.Text);
+            if (string.IsNullOrWhiteSpace(processName) || cmbNewLayoutRuleLayout.SelectedIndex < 0)
+            {
+                return;
+            }
+
+            string layoutTag = cmbNewLayoutRuleLayout.SelectedIndex == 0
+                ? AppSettings.UkrainianLayoutTag
+                : AppSettings.EnglishLayoutTag;
+
+            // Одна програма — одне правило: нове значення замінює попереднє.
+            RemoveLayoutRuleFor(processName);
+
+            lstLayoutRules.Items.Add(processName + AppSettings.LayoutRuleSeparator + layoutTag);
+            txtNewLayoutRuleProcess.Clear();
+            SettingsControlChanged(null, EventArgs.Empty);
+        }
+
+        private void BtnRemoveLayoutRule_Click(object sender, EventArgs e)
+        {
+            RemoveSelectedTag(lstLayoutRules);
+        }
+
+        private void RemoveLayoutRuleFor(string processName)
+        {
+            string prefix = processName + AppSettings.LayoutRuleSeparator;
+
+            for (int index = lstLayoutRules.Items.Count - 1; index >= 0; index--)
+            {
+                if (lstLayoutRules.Items[index].ToString().StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                {
+                    lstLayoutRules.Items.RemoveAt(index);
+                }
+            }
+        }
+
+        private void TxtNewLayoutRuleProcess_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.KeyCode == Keys.Enter)
+            {
+                e.SuppressKeyPress = true;
+                BtnAddLayoutRule_Click(null, EventArgs.Empty);
+            }
+        }
+
         private void btnPickActive_Click(object sender, EventArgs e)
         {
+            StartPickingActiveWindow(btnPickActive, (window, processName) =>
+            {
+                if (!lstProcesses.Items.Contains(processName))
+                {
+                    lstProcesses.Items.Add(processName);
+                    SettingsControlChanged(null, EventArgs.Empty);
+                }
+            });
+        }
+
+        private void BtnPickActiveLayoutRule_Click(object sender, EventArgs e)
+        {
+            StartPickingActiveWindow(btnPickActiveLayoutRule, (window, processName) =>
+            {
+                // Підставляємо назву й поточну розкладку того вікна, але правило не додаємо —
+                // рішення лишається за користувачем, він ще може змінити мову перед "Додати".
+                txtNewLayoutRuleProcess.Text = processName;
+                cmbNewLayoutRuleLayout.SelectedIndex = LayoutSwitcher.IsLayoutEnglishForWindow(window) ? 1 : 0;
+            });
+        }
+
+        // Обидві групи ("Фільтр програм" і "Розкладка для програм") користуються одним
+        // таймером зворотного відліку — під час нього користувач встигає перемкнутись на
+        // потрібне вікно, тож активним є вже не наше.
+        private void StartPickingActiveWindow(Button button, Action<IntPtr, string> onPicked)
+        {
+            pickButton = button;
+            pickCompleted = onPicked;
             countdownValue = PickActiveWindowCountdownSeconds;
-            btnPickActive.Enabled = false;
-            btnPickActive.Text = $"{countdownValue}с...";
+            button.Enabled = false;
+            button.Text = $"{countdownValue}с...";
             pickTimer.Start();
         }
 
@@ -254,13 +356,13 @@ namespace KeyboardLayoutSwitcher
             countdownValue--;
             if (countdownValue > 0)
             {
-                btnPickActive.Text = $"{countdownValue}с...";
+                pickButton.Text = $"{countdownValue}с...";
             }
             else
             {
                 pickTimer.Stop();
-                btnPickActive.Enabled = true;
-                btnPickActive.Text = "Активна";
+                pickButton.Enabled = true;
+                pickButton.Text = "Активна";
 
                 IntPtr foregroundWindow = Win32Interop.GetForegroundWindow();
                 // Ensure we don't pick our own window
@@ -269,12 +371,13 @@ namespace KeyboardLayoutSwitcher
                     string processName = ProcessNameResolver.GetProcessName(foregroundWindow);
                     string normalized = AppSettings.NormalizeProcessName(processName);
 
-                    if (!string.IsNullOrEmpty(normalized) && !lstProcesses.Items.Contains(normalized))
+                    if (!string.IsNullOrEmpty(normalized))
                     {
-                        lstProcesses.Items.Add(normalized);
-                        SettingsControlChanged(null, EventArgs.Empty);
+                        pickCompleted?.Invoke(foregroundWindow, normalized);
                     }
                 }
+
+                pickCompleted = null;
 
                 // Bring back focus after countdown
                 this.Activate();
@@ -325,6 +428,10 @@ namespace KeyboardLayoutSwitcher
             chkEnableSwitching.Checked = settings.IsSwitchingEnabled;
             chkStartWithWindows.Checked = settings.StartWithWindows || StartupManager.IsEnabled();
             chkRestoreApostrophes.Checked = settings.RestoreApostrophes;
+            chkEnableLayoutRules.Checked = settings.EnableLayoutRules;
+            PopulateListFromText(lstLayoutRules, settings.LayoutRulesText);
+            chkSkipEnterCorrection.Checked = settings.SkipEnterCorrection;
+            txtSkipEnterProcesses.Text = settings.SkipEnterCorrectionProcessesText;
             cmbProcessMode.SelectedIndex = (int)settings.ProcessFilterMode;
             PopulateListFromText(lstProcesses, settings.ProcessFilterText);
             PopulateListFromText(lstIgnoredWords, settings.IgnoredWordsText);
@@ -361,6 +468,10 @@ namespace KeyboardLayoutSwitcher
             settings.IsSwitchingEnabled = chkEnableSwitching.Checked;
             settings.StartWithWindows = chkStartWithWindows.Checked;
             settings.RestoreApostrophes = chkRestoreApostrophes.Checked;
+            settings.EnableLayoutRules = chkEnableLayoutRules.Checked;
+            settings.LayoutRulesText = JoinListItems(lstLayoutRules);
+            settings.SkipEnterCorrection = chkSkipEnterCorrection.Checked;
+            settings.SkipEnterCorrectionProcessesText = txtSkipEnterProcesses.Text;
             if (cmbProcessMode.SelectedIndex >= 0) settings.ProcessFilterMode = (ProcessFilterMode)cmbProcessMode.SelectedIndex;
             settings.ProcessFilterText = JoinListItems(lstProcesses);
             settings.IgnoredWordsText = JoinListItems(lstIgnoredWords);
@@ -370,6 +481,10 @@ namespace KeyboardLayoutSwitcher
             // is keyed only by word+layout, so stale entries from before this change must
             // be dropped or they'd keep returning the old verdict until evicted.
             KeyMapper.ClearCache();
+
+            // Так само для правил розкладки: без скидання вікно, де користувач раніше
+            // перебив правило вручну, лишалось би "недоторканним" і за новими правилами.
+            layoutRuleEnforcer?.ResetWindowState();
 
             ApplyRuntimeSettings();
         }
@@ -385,6 +500,15 @@ namespace KeyboardLayoutSwitcher
             {
                 keyboardHook.Stop();
                 lblStatus.Text = "Автозаміна: ВИМКНЕНО";
+            }
+
+            if (settings.EnableLayoutRules && settings.LayoutRules.Count > 0)
+            {
+                layoutRuleEnforcer.Start();
+            }
+            else
+            {
+                layoutRuleEnforcer.Stop();
             }
 
             StartupManager.SetStartWithWindows(settings.StartWithWindows);

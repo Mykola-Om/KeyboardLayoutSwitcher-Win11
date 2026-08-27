@@ -158,7 +158,11 @@ namespace KeyboardLayoutSwitcher
                 }
                 if (vkCode == Win32Interop.VK_RETURN)
                 {
-                    if (TryReplaceCurrentWordAtBoundary('\n', ref isEnglishLayout))
+                    // В адресному рядку браузера Enter підтверджує підказку автодоповнення.
+                    // Якщо втрутитись саме тут, браузер отримає Enter уже по переписаному
+                    // тексту й піде шукати замість переходу на сайт.
+                    if (!settings.IsEnterCorrectionSkipped(cachedProcessName) &&
+                        TryReplaceCurrentWordAtBoundary('\n', ref isEnglishLayout))
                     {
                         return (IntPtr)1;
                     }

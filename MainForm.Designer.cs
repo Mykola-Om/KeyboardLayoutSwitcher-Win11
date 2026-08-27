@@ -34,6 +34,19 @@ namespace KeyboardLayoutSwitcher
         private Button btnPickActive;
         private Timer pickTimer;
         
+        private GroupBox grpLayoutRules;
+        private CheckBox chkEnableLayoutRules;
+        private ListBox lstLayoutRules;
+        private TextBox txtNewLayoutRuleProcess;
+        private ComboBox cmbNewLayoutRuleLayout;
+        private Button btnAddLayoutRule;
+        private Button btnRemoveLayoutRule;
+        private Button btnPickActiveLayoutRule;
+
+        private GroupBox grpEnterCorrection;
+        private CheckBox chkSkipEnterCorrection;
+        private TextBox txtSkipEnterProcesses;
+
         private GroupBox grpIgnoredWords;
         private ListBox lstIgnoredWords;
         private TextBox txtNewIgnoredWord;
@@ -46,6 +59,7 @@ namespace KeyboardLayoutSwitcher
             {
                 components.Dispose();
                 keyboardHook?.Dispose();
+                layoutRuleEnforcer?.Dispose();
             }
             base.Dispose(disposing);
         }
@@ -83,6 +97,19 @@ namespace KeyboardLayoutSwitcher
             this.btnPickActive = new System.Windows.Forms.Button();
             this.pickTimer = new System.Windows.Forms.Timer(this.components);
             
+            this.grpLayoutRules = new System.Windows.Forms.GroupBox();
+            this.chkEnableLayoutRules = new System.Windows.Forms.CheckBox();
+            this.lstLayoutRules = new System.Windows.Forms.ListBox();
+            this.txtNewLayoutRuleProcess = new System.Windows.Forms.TextBox();
+            this.cmbNewLayoutRuleLayout = new System.Windows.Forms.ComboBox();
+            this.btnAddLayoutRule = new System.Windows.Forms.Button();
+            this.btnRemoveLayoutRule = new System.Windows.Forms.Button();
+            this.btnPickActiveLayoutRule = new System.Windows.Forms.Button();
+
+            this.grpEnterCorrection = new System.Windows.Forms.GroupBox();
+            this.chkSkipEnterCorrection = new System.Windows.Forms.CheckBox();
+            this.txtSkipEnterProcesses = new System.Windows.Forms.TextBox();
+
             this.grpIgnoredWords = new System.Windows.Forms.GroupBox();
             this.lstIgnoredWords = new System.Windows.Forms.ListBox();
             this.txtNewIgnoredWord = new System.Windows.Forms.TextBox();
@@ -95,6 +122,8 @@ namespace KeyboardLayoutSwitcher
             this.grpHeuristic.SuspendLayout();
             this.grpProcesses.SuspendLayout();
             this.grpIgnoredWords.SuspendLayout();
+            this.grpLayoutRules.SuspendLayout();
+            this.grpEnterCorrection.SuspendLayout();
             this.SuspendLayout();
 
             // chkEnableSwitching
@@ -121,9 +150,9 @@ namespace KeyboardLayoutSwitcher
             this.chkRestoreApostrophes.CheckState = System.Windows.Forms.CheckState.Checked;
             this.chkRestoreApostrophes.Location = new System.Drawing.Point(260, 12);
             this.chkRestoreApostrophes.Name = "chkRestoreApostrophes";
-            this.chkRestoreApostrophes.Size = new System.Drawing.Size(240, 19);
+            this.chkRestoreApostrophes.Size = new System.Drawing.Size(160, 19);
             this.chkRestoreApostrophes.TabIndex = 2;
-            this.chkRestoreApostrophes.Text = "Відновлювати апостроф (память → пам'ять)";
+            this.chkRestoreApostrophes.Text = "Відновлювати апостроф";
 
             // lblStatus
             this.lblStatus.AutoSize = true;
@@ -134,7 +163,7 @@ namespace KeyboardLayoutSwitcher
             this.lblStatus.Text = "Автозаміна: увімкнено";
 
             // btnExit
-            this.btnExit.Location = new System.Drawing.Point(400, 381);
+            this.btnExit.Location = new System.Drawing.Point(400, 601);
             this.btnExit.Name = "btnExit";
             this.btnExit.Size = new System.Drawing.Size(120, 30);
             this.btnExit.TabIndex = 6;
@@ -247,7 +276,7 @@ namespace KeyboardLayoutSwitcher
             this.grpProcesses.Controls.Add(this.btnAddProcess);
             this.grpProcesses.Controls.Add(this.btnRemoveProcess);
             this.grpProcesses.Controls.Add(this.btnPickActive);
-            this.grpProcesses.Location = new System.Drawing.Point(12, 95);
+            this.grpProcesses.Location = new System.Drawing.Point(12, 169);
             this.grpProcesses.Name = "grpProcesses";
             this.grpProcesses.Size = new System.Drawing.Size(508, 140);
             this.grpProcesses.TabIndex = 4;
@@ -310,12 +339,106 @@ namespace KeyboardLayoutSwitcher
             this.lstProcesses.Size = new System.Drawing.Size(474, 49);
             this.lstProcesses.TabIndex = 5;
 
+            // grpLayoutRules
+            this.grpLayoutRules.Controls.Add(this.chkEnableLayoutRules);
+            this.grpLayoutRules.Controls.Add(this.txtNewLayoutRuleProcess);
+            this.grpLayoutRules.Controls.Add(this.cmbNewLayoutRuleLayout);
+            this.grpLayoutRules.Controls.Add(this.btnAddLayoutRule);
+            this.grpLayoutRules.Controls.Add(this.btnRemoveLayoutRule);
+            this.grpLayoutRules.Controls.Add(this.btnPickActiveLayoutRule);
+            this.grpLayoutRules.Controls.Add(this.lstLayoutRules);
+            this.grpLayoutRules.Location = new System.Drawing.Point(12, 315);
+            this.grpLayoutRules.Name = "grpLayoutRules";
+            this.grpLayoutRules.Size = new System.Drawing.Size(508, 140);
+            this.grpLayoutRules.TabIndex = 7;
+            this.grpLayoutRules.TabStop = false;
+            this.grpLayoutRules.Text = "Розкладка для програм";
+
+            // chkEnableLayoutRules
+            this.chkEnableLayoutRules.AutoSize = true;
+            this.chkEnableLayoutRules.Checked = true;
+            this.chkEnableLayoutRules.CheckState = System.Windows.Forms.CheckState.Checked;
+            this.chkEnableLayoutRules.Location = new System.Drawing.Point(17, 22);
+            this.chkEnableLayoutRules.Name = "chkEnableLayoutRules";
+            this.chkEnableLayoutRules.Size = new System.Drawing.Size(300, 19);
+            this.chkEnableLayoutRules.TabIndex = 0;
+            this.chkEnableLayoutRules.Text = "Вмикати задану розкладку при переході у вікно";
+
+            // txtNewLayoutRuleProcess
+            this.txtNewLayoutRuleProcess.Location = new System.Drawing.Point(17, 51);
+            this.txtNewLayoutRuleProcess.Name = "txtNewLayoutRuleProcess";
+            this.txtNewLayoutRuleProcess.Size = new System.Drawing.Size(140, 23);
+            this.txtNewLayoutRuleProcess.TabIndex = 1;
+
+            // cmbNewLayoutRuleLayout
+            this.cmbNewLayoutRuleLayout.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.cmbNewLayoutRuleLayout.FormattingEnabled = true;
+            this.cmbNewLayoutRuleLayout.Location = new System.Drawing.Point(163, 51);
+            this.cmbNewLayoutRuleLayout.Name = "cmbNewLayoutRuleLayout";
+            this.cmbNewLayoutRuleLayout.Size = new System.Drawing.Size(71, 23);
+            this.cmbNewLayoutRuleLayout.TabIndex = 2;
+
+            // btnAddLayoutRule
+            this.btnAddLayoutRule.Location = new System.Drawing.Point(240, 50);
+            this.btnAddLayoutRule.Name = "btnAddLayoutRule";
+            this.btnAddLayoutRule.Size = new System.Drawing.Size(80, 25);
+            this.btnAddLayoutRule.TabIndex = 3;
+            this.btnAddLayoutRule.Text = "Додати";
+
+            // btnRemoveLayoutRule
+            this.btnRemoveLayoutRule.Location = new System.Drawing.Point(326, 50);
+            this.btnRemoveLayoutRule.Name = "btnRemoveLayoutRule";
+            this.btnRemoveLayoutRule.Size = new System.Drawing.Size(80, 25);
+            this.btnRemoveLayoutRule.TabIndex = 4;
+            this.btnRemoveLayoutRule.Text = "Видалити";
+
+            // btnPickActiveLayoutRule
+            this.btnPickActiveLayoutRule.Location = new System.Drawing.Point(412, 50);
+            this.btnPickActiveLayoutRule.Name = "btnPickActiveLayoutRule";
+            this.btnPickActiveLayoutRule.Size = new System.Drawing.Size(80, 25);
+            this.btnPickActiveLayoutRule.TabIndex = 6;
+            this.btnPickActiveLayoutRule.Text = "Активна";
+
+            // lstLayoutRules
+            this.lstLayoutRules.FormattingEnabled = true;
+            this.lstLayoutRules.ItemHeight = 15;
+            this.lstLayoutRules.Location = new System.Drawing.Point(17, 82);
+            this.lstLayoutRules.Name = "lstLayoutRules";
+            this.lstLayoutRules.Size = new System.Drawing.Size(475, 49);
+            this.lstLayoutRules.TabIndex = 5;
+
+            // grpEnterCorrection
+            this.grpEnterCorrection.Controls.Add(this.chkSkipEnterCorrection);
+            this.grpEnterCorrection.Controls.Add(this.txtSkipEnterProcesses);
+            this.grpEnterCorrection.Location = new System.Drawing.Point(12, 95);
+            this.grpEnterCorrection.Name = "grpEnterCorrection";
+            this.grpEnterCorrection.Size = new System.Drawing.Size(508, 68);
+            this.grpEnterCorrection.TabIndex = 8;
+            this.grpEnterCorrection.TabStop = false;
+            this.grpEnterCorrection.Text = "Виправлення при Enter";
+
+            // chkSkipEnterCorrection
+            this.chkSkipEnterCorrection.AutoSize = true;
+            this.chkSkipEnterCorrection.Checked = true;
+            this.chkSkipEnterCorrection.CheckState = System.Windows.Forms.CheckState.Checked;
+            this.chkSkipEnterCorrection.Location = new System.Drawing.Point(17, 20);
+            this.chkSkipEnterCorrection.Name = "chkSkipEnterCorrection";
+            this.chkSkipEnterCorrection.Size = new System.Drawing.Size(300, 19);
+            this.chkSkipEnterCorrection.TabIndex = 0;
+            this.chkSkipEnterCorrection.Text = "Не виправляти при Enter у цих програмах:";
+
+            // txtSkipEnterProcesses
+            this.txtSkipEnterProcesses.Location = new System.Drawing.Point(17, 41);
+            this.txtSkipEnterProcesses.Name = "txtSkipEnterProcesses";
+            this.txtSkipEnterProcesses.Size = new System.Drawing.Size(475, 23);
+            this.txtSkipEnterProcesses.TabIndex = 1;
+
             // grpIgnoredWords
             this.grpIgnoredWords.Controls.Add(this.lstIgnoredWords);
             this.grpIgnoredWords.Controls.Add(this.txtNewIgnoredWord);
             this.grpIgnoredWords.Controls.Add(this.btnAddIgnoredWord);
             this.grpIgnoredWords.Controls.Add(this.btnRemoveIgnoredWord);
-            this.grpIgnoredWords.Location = new System.Drawing.Point(12, 241);
+            this.grpIgnoredWords.Location = new System.Drawing.Point(12, 461);
             this.grpIgnoredWords.Name = "grpIgnoredWords";
             this.grpIgnoredWords.Size = new System.Drawing.Size(508, 130);
             this.grpIgnoredWords.TabIndex = 5;
@@ -353,9 +476,11 @@ namespace KeyboardLayoutSwitcher
             // MainForm
             this.AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(534, 426);
+            this.ClientSize = new System.Drawing.Size(534, 646);
             this.Controls.Add(this.btnExit);
             this.Controls.Add(this.grpIgnoredWords);
+            this.Controls.Add(this.grpLayoutRules);
+            this.Controls.Add(this.grpEnterCorrection);
             this.Controls.Add(this.grpProcesses);
             this.Controls.Add(this.grpHeuristic);
             this.Controls.Add(this.lblStatus);
@@ -377,6 +502,10 @@ namespace KeyboardLayoutSwitcher
             this.grpProcesses.ResumeLayout(false);
             this.grpProcesses.PerformLayout();
             this.grpIgnoredWords.ResumeLayout(false);
+            this.grpLayoutRules.ResumeLayout(false);
+            this.grpEnterCorrection.ResumeLayout(false);
+            this.grpEnterCorrection.PerformLayout();
+            this.grpLayoutRules.PerformLayout();
             this.grpIgnoredWords.PerformLayout();
             this.ResumeLayout(false);
             this.PerformLayout();
