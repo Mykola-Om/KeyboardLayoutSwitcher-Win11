@@ -16,6 +16,7 @@
     <None Include="..\Dictionaries\en.txt" Link="Dictionaries\en.txt" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\Dictionaries\uk.txt" Link="Dictionaries\uk.txt" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\Dictionaries\tech.txt" Link="Dictionaries\tech.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Dictionaries\uk-apostrophe.txt" Link="Dictionaries\uk-apostrophe.txt" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

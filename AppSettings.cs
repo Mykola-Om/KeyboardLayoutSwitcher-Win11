@@ -35,6 +35,9 @@ namespace KeyboardLayoutSwitcher
 
         public bool EnableTrace { get; set; } = false;
 
+        // Відновлення пропущеного апострофа в українських словах ("память" -> "пам'ять").
+        public bool RestoreApostrophes { get; set; } = true;
+
         public ProcessFilterMode ProcessFilterMode { get; set; } = ProcessFilterMode.Disabled;
 
         public string ProcessFilterText

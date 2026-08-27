@@ -23,6 +23,7 @@ doc
 docx
 else
 enum
+env
 exe
 false
 for

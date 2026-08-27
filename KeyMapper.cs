@@ -91,6 +91,16 @@ namespace KeyboardLayoutSwitcher
         // Штраф за слово, що починається на "x" з наступним приголосним (нетипово для англійської).
         private const int UnlikelyLeadingXPenalty = 30;
 
+        // Штраф за пару сусідніх приголосних, яка жодного разу не трапляється у словнику
+        // відповідної мови. Текст, набраний не в тій розкладці, майже завжди містить такі
+        // пари ("lh", "hj", "kf" для англійської), тоді як у справжніх словах їх немає.
+        private const int ImplausibleBigramPenalty = 15;
+
+        // Мінімальний розмір набору біграм, за якого йому можна довіряти. Якщо словник
+        // не завантажився, набір буде крихітним і покарав би геть усе — тому в такому
+        // разі перевірка біграм просто вимикається.
+        private const int MinimumBigramSetSize = 100;
+
         private static readonly LruCache enCache = new LruCache(WordCacheCapacity);
         private static readonly LruCache ukCache = new LruCache(WordCacheCapacity);
 
@@ -127,13 +137,131 @@ namespace KeyboardLayoutSwitcher
 
         private static readonly Dictionary<char, char> ukrToEngMap = BuildReverseMap();
 
+        // Пари сусідніх приголосних, що реально зустрічаються у словах кожної мови.
+        private static readonly HashSet<string> englishConsonantBigrams = new HashSet<string>(StringComparer.Ordinal);
+        private static readonly HashSet<string> ukrainianConsonantBigrams = new HashSet<string>(StringComparer.Ordinal);
+
+        // Апостроф, який вводиться клавішею VK_OEM_3 в українській розкладці.
+        private const char Apostrophe = '\'';
+
+        // Типографський апостроф: деякі редактори підставляють його замість звичайного,
+        // тому перед пошуком у словнику слово нормалізуємо.
+        private const char TypographicApostrophe = '’';
+
+        // Слово без апострофа -> правильна форма з апострофом ("память" -> "пам'ять").
+        // Ключі виводяться зі списку правильних форм, тому розсинхронізуватись не можуть.
+        private static readonly Dictionary<string, string> apostropheCorrections =
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
         static KeyMapper()
         {
             LoadDictionaryFile("Dictionaries\\en.txt", commonEnglishWords);
             LoadDictionaryFile("Dictionaries\\uk.txt", commonUkrainianWords);
-            
+
             // Завантаження технічних слів, які зазвичай вводяться на англійській розкладці
             LoadDictionaryFile("Dictionaries\\tech.txt", commonEnglishWords);
+
+            // Слова з апострофом — це теж повноцінні українські слова, тому вони мають
+            // потрапити і в загальний словник, інакше евристика вважатиме їх помилковими.
+            LoadApostropheDictionary("Dictionaries\\uk-apostrophe.txt");
+
+            CollectConsonantBigrams(commonEnglishWords, englishVowels, englishConsonantBigrams);
+            CollectConsonantBigrams(commonUkrainianWords, ukrainianVowels, ukrainianConsonantBigrams);
+        }
+
+        private static void LoadApostropheDictionary(string relativePath)
+        {
+            var wordsWithApostrophe = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            LoadDictionaryFile(relativePath, wordsWithApostrophe);
+
+            foreach (string word in wordsWithApostrophe)
+            {
+                commonUkrainianWords.Add(word);
+
+                string withoutApostrophe = word.Replace(Apostrophe.ToString(), string.Empty);
+                if (withoutApostrophe.Length == word.Length)
+                {
+                    continue;
+                }
+
+                // Якщо форма без апострофа сама є словом, відновлювати апостроф небезпечно.
+                if (commonUkrainianWords.Contains(withoutApostrophe))
+                {
+                    continue;
+                }
+
+                apostropheCorrections[withoutApostrophe] = word;
+            }
+        }
+
+        /// <summary>
+        /// Відновлює пропущений апостроф ("память" -> "пам'ять"). Працює строго за словником:
+        /// правило "після б/п/в/м/ф перед я/ю/є/ї" зламало б слова, де апострофа немає
+        /// ("свято", "цвях", "морквяний"), тому воно тут свідомо не використовується.
+        /// </summary>
+        public static bool TryRestoreApostrophe(string word, out string correctedWord)
+        {
+            correctedWord = null;
+
+            if (string.IsNullOrWhiteSpace(word))
+            {
+                return false;
+            }
+
+            if (word.IndexOf(Apostrophe) >= 0 || word.IndexOf(TypographicApostrophe) >= 0)
+            {
+                return false; // Апостроф уже на місці
+            }
+
+            // Слово, яке і без апострофа є коректним, не чіпаємо.
+            if (commonUkrainianWords.Contains(word))
+            {
+                return false;
+            }
+
+            if (!apostropheCorrections.TryGetValue(word, out string correction))
+            {
+                return false;
+            }
+
+            correctedWord = ApplyCasePattern(word, correction);
+            return true;
+        }
+
+        private static string ApplyCasePattern(string sourceWord, string correction)
+        {
+            if (IsAllCaps(sourceWord, false))
+            {
+                return correction.ToUpperInvariant();
+            }
+
+            string lowerCorrection = correction.ToLowerInvariant();
+            if (char.IsUpper(sourceWord[0]))
+            {
+                return char.ToUpperInvariant(lowerCorrection[0]) + lowerCorrection.Substring(1);
+            }
+
+            return lowerCorrection;
+        }
+
+        private static void CollectConsonantBigrams(IEnumerable<string> words, HashSet<char> vowels, HashSet<string> target)
+        {
+            foreach (string word in words)
+            {
+                string lowerWord = word.ToLowerInvariant();
+                for (int index = 0; index < lowerWord.Length - 1; index++)
+                {
+                    if (IsConsonant(lowerWord[index], vowels) && IsConsonant(lowerWord[index + 1], vowels))
+                    {
+                        target.Add(lowerWord.Substring(index, 2));
+                    }
+                }
+            }
+        }
+
+        private static bool IsConsonant(char character, HashSet<char> vowels)
+        {
+            return char.IsLetter(character) && !vowels.Contains(character);
         }
 
         private static void LoadDictionaryFile(string relativePath, HashSet<string> targetSet)
@@ -189,7 +317,7 @@ namespace KeyboardLayoutSwitcher
             return correctedWord.ToString();
         }
 
-        public static bool IsWrongLayout(string word, bool isEnglishLayout, AppSettings settings)
+        public static bool IsWrongLayout(string word, bool isEnglishLayout, AppSettings settings, char boundaryChar = '\0', char lastBoundaryChar = '\0')
         {
             if (string.IsNullOrWhiteSpace(word))
             {
@@ -202,21 +330,80 @@ namespace KeyboardLayoutSwitcher
                 return cachedResult;
             }
 
-            bool result = CalculateIsWrongLayout(word, isEnglishLayout, settings);
+            bool result = CalculateIsWrongLayout(word, isEnglishLayout, settings, boundaryChar, lastBoundaryChar);
 
             cache.Set(word, result);
 
             return result;
         }
 
-        private static bool CalculateIsWrongLayout(string word, bool isEnglishLayout, AppSettings settings)
+        private static bool CalculateIsWrongLayout(string word, bool isEnglishLayout, AppSettings settings, char boundaryChar, char lastBoundaryChar)
         {
+            if (isEnglishLayout)
+            {
+                // Dot-prefixed files/extensions (e.g. .env, .gitignore)
+                if (lastBoundaryChar == '.')
+                {
+                    return false;
+                }
+
+                // Underscore-based constants/variables (e.g. DATABASE_URL, MY_VAR)
+                if (boundaryChar == '_' || lastBoundaryChar == '_')
+                {
+                    return false;
+                }
+
+                // Path and URL slashes (e.g. src/components, http://)
+                if (boundaryChar == '/' || boundaryChar == '\\' || lastBoundaryChar == '/' || lastBoundaryChar == '\\')
+                {
+                    return false;
+                }
+
+                // camelCase suffix protection (preceded by case transition)
+                if (lastBoundaryChar == '\u0001')
+                {
+                    return false;
+                }
+
+                // ALL_CAPS constants/variables in English (only uppercase English letters and digits)
+                if (IsAllCaps(word, true))
+                {
+                    return false;
+                }
+            }
+            else
+            {
+                // Short Ukrainian abbreviations in uppercase (length <= 3, e.g. ФОП, ТОВ, ЗСУ)
+                // but we allow them to be corrected if they are adjacent to '_' or '.' (part of a variable/file name)
+                if (word.Length <= 3 && IsAllCaps(word, false))
+                {
+                    if (boundaryChar != '_' && lastBoundaryChar != '_' && lastBoundaryChar != '.')
+                    {
+                        return false;
+                    }
+                }
+            }
+
+            // Alphanumeric mixed strings (both letters and digits) are technical terms
+            if (ContainsLettersAndDigits(word))
+            {
+                return false;
+            }
+
             string convertedWord = ConvertWord(word, isEnglishLayout);
             int sourceMappedChars = CountMappedChars(word, isEnglishLayout ? engToUkrMap : ukrToEngMap);
 
             if (MatchesFrequentWord(word, isEnglishLayout))
             {
                 return false; // Already a valid word in current layout, don't convert it!
+            }
+
+            // Українське слово з пропущеним апострофом ("сімї", "вюн") — це саме українське
+            // слово, а не помилкова розкладка. Інакше евристика перетворила б його на
+            // латинське сміття ще до того, як апостроф встигне відновитись.
+            if (!isEnglishLayout && apostropheCorrections.ContainsKey(NormalizeWord(word)))
+            {
+                return false;
             }
 
             if (settings != null && settings.IgnoredWords != null && settings.IgnoredWords.Contains(word))
@@ -274,7 +461,9 @@ namespace KeyboardLayoutSwitcher
             int vowelCount = 0;
             
             HashSet<char> vowels = isEnglishLayout ? englishVowels : ukrainianVowels;
-            
+            HashSet<string> knownBigrams = isEnglishLayout ? englishConsonantBigrams : ukrainianConsonantBigrams;
+            bool checkBigrams = knownBigrams.Count >= MinimumBigramSetSize;
+
             for (int i = 0; i < lowerText.Length; i++)
             {
                 char c = lowerText[i];
@@ -290,6 +479,14 @@ namespace KeyboardLayoutSwitcher
                         consecutiveConsonants++;
                         if (consecutiveConsonants == ConsecutiveConsonantsThreshold) score += ConsecutiveConsonantsPenalty;
                         else if (consecutiveConsonants > ConsecutiveConsonantsThreshold) score += ExtraConsecutiveConsonantPenalty;
+
+                        // Пара приголосних, якої немає в жодному слові мови — сильна ознака
+                        // тексту, набраного не в тій розкладці.
+                        if (checkBigrams && consecutiveConsonants >= 2 && char.IsLetter(lowerText[i - 1]) &&
+                            !knownBigrams.Contains(lowerText.Substring(i - 1, 2)))
+                        {
+                            score += ImplausibleBigramPenalty;
+                        }
                     }
                 }
             }
@@ -319,6 +516,13 @@ namespace KeyboardLayoutSwitcher
         public static bool IsLayoutWordCharacter(char character, bool isEnglishLayout)
         {
             if (char.IsLetter(character))
+            {
+                return true;
+            }
+
+            // В українській розкладці апостроф — частина слова ("пам'ять"), а не межа.
+            // (В англійській він і так проходить нижче, бо мапиться на літеру "є".)
+            if (!isEnglishLayout && character == Apostrophe)
             {
                 return true;
             }
@@ -414,6 +618,52 @@ namespace KeyboardLayoutSwitcher
             }
 
             return count;
+        }
+
+        private static bool IsAllCaps(string word, bool englishOnly)
+        {
+            if (string.IsNullOrEmpty(word)) return false;
+
+            bool hasLetter = false;
+            foreach (char c in word)
+            {
+                if (char.IsLetter(c))
+                {
+                    hasLetter = true;
+                    if (englishOnly)
+                    {
+                        if (c < 'A' || c > 'Z') return false;
+                    }
+                    else
+                    {
+                        if (char.IsLower(c)) return false;
+                    }
+                }
+                else if (char.IsDigit(c))
+                {
+                    // allowed
+                }
+                else
+                {
+                    return false;
+                }
+            }
+            return hasLetter;
+        }
+
+        private static bool ContainsLettersAndDigits(string word)
+        {
+            if (string.IsNullOrEmpty(word)) return false;
+            bool hasLetter = false;
+            bool hasDigit = false;
+            foreach (char c in word)
+            {
+                if (char.IsLetter(c)) hasLetter = true;
+                else if (char.IsDigit(c)) hasDigit = true;
+
+                if (hasLetter && hasDigit) return true;
+            }
+            return false;
         }
     }
 }

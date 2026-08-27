@@ -41,6 +41,15 @@ namespace KeyboardLayoutSwitcher
             }
         }
 
+        public char GetLastChar()
+        {
+            if (currentWord.Length > 0)
+            {
+                return currentWord[currentWord.Length - 1];
+            }
+            return '\0';
+        }
+
         public bool IsEmpty => currentWord.Length == 0;
     }
 }

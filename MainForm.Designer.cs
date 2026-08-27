@@ -7,6 +7,7 @@ namespace KeyboardLayoutSwitcher
         private System.ComponentModel.IContainer components = null;
         private CheckBox chkEnableSwitching;
         private CheckBox chkStartWithWindows;
+        private CheckBox chkRestoreApostrophes;
         private Button btnExit;
         private Label lblStatus;
         private NotifyIcon notifyIcon;
@@ -54,6 +55,7 @@ namespace KeyboardLayoutSwitcher
             this.components = new System.ComponentModel.Container();
             this.chkEnableSwitching = new System.Windows.Forms.CheckBox();
             this.chkStartWithWindows = new System.Windows.Forms.CheckBox();
+            this.chkRestoreApostrophes = new System.Windows.Forms.CheckBox();
             this.btnExit = new System.Windows.Forms.Button();
             this.lblStatus = new System.Windows.Forms.Label();
             this.notifyIcon = new System.Windows.Forms.NotifyIcon(this.components);
@@ -112,6 +114,16 @@ namespace KeyboardLayoutSwitcher
             this.chkStartWithWindows.Size = new System.Drawing.Size(176, 19);
             this.chkStartWithWindows.TabIndex = 1;
             this.chkStartWithWindows.Text = "Запускати разом з Windows";
+
+            // chkRestoreApostrophes
+            this.chkRestoreApostrophes.AutoSize = true;
+            this.chkRestoreApostrophes.Checked = true;
+            this.chkRestoreApostrophes.CheckState = System.Windows.Forms.CheckState.Checked;
+            this.chkRestoreApostrophes.Location = new System.Drawing.Point(260, 12);
+            this.chkRestoreApostrophes.Name = "chkRestoreApostrophes";
+            this.chkRestoreApostrophes.Size = new System.Drawing.Size(240, 19);
+            this.chkRestoreApostrophes.TabIndex = 2;
+            this.chkRestoreApostrophes.Text = "Відновлювати апостроф (память → пам'ять)";
 
             // lblStatus
             this.lblStatus.AutoSize = true;
@@ -347,6 +359,7 @@ namespace KeyboardLayoutSwitcher
             this.Controls.Add(this.grpProcesses);
             this.Controls.Add(this.grpHeuristic);
             this.Controls.Add(this.lblStatus);
+            this.Controls.Add(this.chkRestoreApostrophes);
             this.Controls.Add(this.chkStartWithWindows);
             this.Controls.Add(this.chkEnableSwitching);
             this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.FixedSingle;

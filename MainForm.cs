@@ -22,8 +22,11 @@ namespace KeyboardLayoutSwitcher
         private bool isExiting;
         private int countdownValue;
 
+        public static MainForm Instance { get; private set; }
+
         public MainForm()
         {
+            Instance = this;
             settings = AppSettingsStore.Load();
             InitializeComponent();
 
@@ -41,6 +44,7 @@ namespace KeyboardLayoutSwitcher
             // Wire events.
             chkEnableSwitching.CheckedChanged += ChkEnableSwitching_CheckedChanged;
             chkStartWithWindows.CheckedChanged += SettingsControlChanged;
+            chkRestoreApostrophes.CheckedChanged += SettingsControlChanged;
             cmbProcessMode.SelectedIndexChanged += SettingsControlChanged;
             
             btnExit.Click += BtnExit_Click;
@@ -320,6 +324,7 @@ namespace KeyboardLayoutSwitcher
 
             chkEnableSwitching.Checked = settings.IsSwitchingEnabled;
             chkStartWithWindows.Checked = settings.StartWithWindows || StartupManager.IsEnabled();
+            chkRestoreApostrophes.Checked = settings.RestoreApostrophes;
             cmbProcessMode.SelectedIndex = (int)settings.ProcessFilterMode;
             PopulateListFromText(lstProcesses, settings.ProcessFilterText);
             PopulateListFromText(lstIgnoredWords, settings.IgnoredWordsText);
@@ -355,6 +360,7 @@ namespace KeyboardLayoutSwitcher
         {
             settings.IsSwitchingEnabled = chkEnableSwitching.Checked;
             settings.StartWithWindows = chkStartWithWindows.Checked;
+            settings.RestoreApostrophes = chkRestoreApostrophes.Checked;
             if (cmbProcessMode.SelectedIndex >= 0) settings.ProcessFilterMode = (ProcessFilterMode)cmbProcessMode.SelectedIndex;
             settings.ProcessFilterText = JoinListItems(lstProcesses);
             settings.IgnoredWordsText = JoinListItems(lstIgnoredWords);

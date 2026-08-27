@@ -23,6 +23,30 @@ namespace KeyboardLayoutSwitcher
         private IntPtr lastForegroundWindow = IntPtr.Zero;
         private string cachedProcessName = string.Empty;
         private readonly object processNameCacheLock = new object();
+        private char lastBoundaryChar = '\0';
+
+        private class UndoState
+        {
+            public string OriginalWord { get; }
+            public int CorrectedWordLength { get; }
+            public bool OriginalLayoutIsEnglish { get; }
+            public char BoundaryChar { get; }
+
+            // Виправлення апострофа відбувається в межах однієї розкладки, тому його
+            // скасування не повинно нічого перемикати назад.
+            public bool LayoutWasSwitched { get; }
+
+            public UndoState(string originalWord, int correctedWordLength, bool originalLayoutIsEnglish, char boundaryChar, bool layoutWasSwitched = true)
+            {
+                OriginalWord = originalWord;
+                CorrectedWordLength = correctedWordLength;
+                OriginalLayoutIsEnglish = originalLayoutIsEnglish;
+                BoundaryChar = boundaryChar;
+                LayoutWasSwitched = layoutWasSwitched;
+            }
+        }
+
+        private UndoState currentUndoState = null;
 
         public KeyboardHook(AppSettings settings)
         {
@@ -78,6 +102,8 @@ namespace KeyboardLayoutSwitcher
                 if (msg == Win32Interop.WM_LBUTTONDOWN || msg == Win32Interop.WM_RBUTTONDOWN || msg == Win32Interop.WM_MBUTTONDOWN)
                 {
                     wordTracker.Clear();
+                    lastBoundaryChar = '\0';
+                    currentUndoState = null;
                 }
             }
             return Win32Interop.CallNextHookEx(mouseHookId, nCode, wParam, lParam);
@@ -98,6 +124,8 @@ namespace KeyboardLayoutSwitcher
                 {
                     lastForegroundWindow = foregroundWindow;
                     wordTracker.Clear();
+                    lastBoundaryChar = '\0';
+                    currentUndoState = null;
                     lock (processNameCacheLock)
                     {
                         cachedProcessName = ProcessNameResolver.GetProcessName(foregroundWindow);
@@ -107,12 +135,27 @@ namespace KeyboardLayoutSwitcher
                 if (!settings.IsProcessAllowed(cachedProcessName))
                 {
                     wordTracker.Clear();
+                    lastBoundaryChar = '\0';
+                    currentUndoState = null;
                     return Win32Interop.CallNextHookEx(hookId, nCode, wParam, lParam);
                 }
 
                 isEnglishLayout = LayoutSwitcher.IsCurrentKeyboardLayoutEnglish();
 
                 int vkCode = (int)hookData.vkCode;
+
+                if (currentUndoState != null)
+                {
+                    if (vkCode == Win32Interop.VK_BACK)
+                    {
+                        ExecuteUndo();
+                        return (IntPtr)1; // Swallow the Backspace key!
+                    }
+                    else if (!IsModifierKey(vkCode))
+                    {
+                        currentUndoState = null;
+                    }
+                }
                 if (vkCode == Win32Interop.VK_RETURN)
                 {
                     if (TryReplaceCurrentWordAtBoundary('\n', ref isEnglishLayout))
@@ -121,6 +164,7 @@ namespace KeyboardLayoutSwitcher
                     }
 
                     wordTracker.Clear();
+                    lastBoundaryChar = '\n';
                     return Win32Interop.CallNextHookEx(hookId, nCode, wParam, lParam);
                 }
 
@@ -132,6 +176,7 @@ namespace KeyboardLayoutSwitcher
                     }
 
                     wordTracker.Clear();
+                    lastBoundaryChar = '\t';
                     return Win32Interop.CallNextHookEx(hookId, nCode, wParam, lParam);
                 }
 
@@ -147,6 +192,7 @@ namespace KeyboardLayoutSwitcher
                 if (isCtrlPressed || isAltPressed || isWinPressed)
                 {
                     wordTracker.Clear();
+                    lastBoundaryChar = '\0';
                     return Win32Interop.CallNextHookEx(hookId, nCode, wParam, lParam);
                 }
 
@@ -154,6 +200,23 @@ namespace KeyboardLayoutSwitcher
 
                 if (KeyMapper.IsLayoutWordCharacter(ch, isEnglishLayout))
                 {
+                    if (wordTracker.Length > 0)
+                    {
+                        char prevChar = wordTracker.GetLastChar();
+                        if (char.IsLower(prevChar) && char.IsUpper(ch))
+                        {
+                            if (TryReplaceCurrentWordAtBoundary('\u0001', ref isEnglishLayout))
+                            {
+                                TraceLogger.Trace("CamelCase prefix corrected");
+                                ch = GetCharFromKey(vkCode, isEnglishLayout);
+                            }
+                            else
+                            {
+                                wordTracker.Clear();
+                                lastBoundaryChar = '\u0001';
+                            }
+                        }
+                    }
                     wordTracker.AppendChar(ch);
                 }
                 else if (char.IsWhiteSpace(ch) || char.IsPunctuation(ch))
@@ -165,10 +228,12 @@ namespace KeyboardLayoutSwitcher
                     }
 
                     wordTracker.Clear();
+                    lastBoundaryChar = ch;
                 }
                 else if (!IsModifierKey(vkCode))
                 {
                     wordTracker.Clear();
+                    lastBoundaryChar = '\0';
                 }
             }
             return Win32Interop.CallNextHookEx(hookId, nCode, wParam, lParam);
@@ -194,10 +259,35 @@ namespace KeyboardLayoutSwitcher
                 vkCode == Win32Interop.VK_NEXT)
             {
                 wordTracker.Clear();
+                lastBoundaryChar = '\0';
+                currentUndoState = null;
                 return true;
             }
 
             return false;
+        }
+
+        private void ExecuteUndo()
+        {
+            UndoState state = currentUndoState;
+            currentUndoState = null;
+
+            int backspaces = state.CorrectedWordLength;
+            if (state.BoundaryChar != '\u0001')
+            {
+                backspaces += 1;
+            }
+
+            if (!state.LayoutWasSwitched)
+            {
+                inputReplacer.QueueSameLayoutUndo(backspaces, state.OriginalWord);
+                return;
+            }
+
+            bool targetLayoutIsEnglish = state.OriginalLayoutIsEnglish;
+            isEnglishLayout = targetLayoutIsEnglish;
+
+            inputReplacer.QueueUndo(backspaces, state.OriginalWord, targetLayoutIsEnglish);
         }
 
         private bool TryReplaceCurrentWordAtBoundary(char boundaryChar, ref bool currentLayoutIsEnglish)
@@ -207,9 +297,9 @@ namespace KeyboardLayoutSwitcher
                 return false;
             }
 
-            if (!KeyMapper.IsWrongLayout(word, currentLayoutIsEnglish, settings))
+            if (!KeyMapper.IsWrongLayout(word, currentLayoutIsEnglish, settings, boundaryChar, lastBoundaryChar))
             {
-                return false;
+                return TryRestoreApostropheAtBoundary(word, boundaryChar, currentLayoutIsEnglish);
             }
 
             string correctedWord = KeyMapper.ConvertWord(word, currentLayoutIsEnglish);
@@ -218,8 +308,42 @@ namespace KeyboardLayoutSwitcher
             bool oldLayout = currentLayoutIsEnglish;
             currentLayoutIsEnglish = !currentLayoutIsEnglish;
 
+            // Trigger visual notification overlay
+            string transitionText = oldLayout ? "EN → UA" : "UA → EN";
+            NotificationForm.ShowNotification(transitionText);
+
+            // Store undo state
+            currentUndoState = new UndoState(word, correctedWord.Length, oldLayout, boundaryChar);
+
             inputReplacer.QueueReplacement(word.Length, correctedWord, boundaryChar, oldLayout);
             wordTracker.Clear();
+            lastBoundaryChar = '\0';
+            return true;
+        }
+
+        /// <summary>
+        /// Слово набране в правильній розкладці, але, можливо, без апострофа ("память").
+        /// Розкладку тут не чіпаємо — міняється лише саме слово.
+        /// </summary>
+        private bool TryRestoreApostropheAtBoundary(string word, char boundaryChar, bool currentLayoutIsEnglish)
+        {
+            if (!settings.RestoreApostrophes || currentLayoutIsEnglish)
+            {
+                return false;
+            }
+
+            if (!KeyMapper.TryRestoreApostrophe(word, out string correctedWord))
+            {
+                return false;
+            }
+
+            TraceLogger.Trace($"Apostrophe restored: len={word.Length}");
+
+            currentUndoState = new UndoState(word, correctedWord.Length, currentLayoutIsEnglish, boundaryChar, layoutWasSwitched: false);
+
+            inputReplacer.QueueSameLayoutReplacement(word.Length, correctedWord, boundaryChar);
+            wordTracker.Clear();
+            lastBoundaryChar = '\0';
             return true;
         }
 
