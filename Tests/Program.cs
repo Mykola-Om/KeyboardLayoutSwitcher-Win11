@@ -11,6 +11,7 @@ namespace KeyboardLayoutSwitcher.Tests
             failures += RunSuite("WordTrackerTests", () => new WordTrackerTests().RunAllTests());
             failures += RunSuite("AppSettingsTests", () => new AppSettingsTests().RunAllTests());
             failures += RunSuite("LayoutSwitcherTests", () => new LayoutSwitcherTests().RunAllTests());
+            failures += RunSuite("LayoutRuleEnforcerTests", () => new LayoutRuleEnforcerTests().RunAllTests());
 
             Console.WriteLine();
             if (failures > 0)

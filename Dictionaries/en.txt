@@ -16,9 +16,7 @@
 'in
 'it
 'know
-'ll
 'm
-'m-
 'm-i
 'mon
 'n
@@ -26,9 +24,7 @@
 'oh
 're
 's
-'s-
 't
-'t-
 'that
 'the
 'this
@@ -1543,7 +1539,6 @@ chester
 chet
 chew
 chewing
-chffffff
 chi
 chicago
 chick

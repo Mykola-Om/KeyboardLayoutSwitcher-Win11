@@ -91,6 +91,60 @@ namespace KeyboardLayoutSwitcher
             }
         }
 
+        /// <summary>
+        /// Що зробити з вікном, яке щойно стало активним.
+        /// </summary>
+        public enum RuleAction
+        {
+            /// <summary>Правила для цієї програми немає.</summary>
+            NoRule,
+
+            /// <summary>Користувач уже перебив правило в цьому вікні — не чіпаємо.</summary>
+            SkipOverridden,
+
+            /// <summary>Розкладка змінилась не нами: запам'ятати вибір і більше не втручатись.</summary>
+            MarkManualOverride,
+
+            /// <summary>Виставити задану розкладку.</summary>
+            ApplyLayout,
+
+            /// <summary>Розкладка вже така, як треба — лише запам'ятати стан.</summary>
+            AlreadyCorrect
+        }
+
+        /// <summary>
+        /// Чисте рішення без звернень до системи — щоб поведінку "ручний вибір має пріоритет"
+        /// можна було перевірити тестами, а не лише руками.
+        /// </summary>
+        public static RuleAction Decide(
+            bool? desiredLayoutIsEnglish,
+            bool currentLayoutIsEnglish,
+            bool wasAppliedByUs,
+            bool previouslyAppliedLayoutIsEnglish,
+            bool alreadyOverridden)
+        {
+            if (desiredLayoutIsEnglish == null)
+            {
+                return RuleAction.NoRule;
+            }
+
+            if (alreadyOverridden)
+            {
+                return RuleAction.SkipOverridden;
+            }
+
+            // Ми вже виставляли розкладку цьому вікну — якщо вона більше не наша,
+            // значить її змінили свідомо.
+            if (wasAppliedByUs && currentLayoutIsEnglish != previouslyAppliedLayoutIsEnglish)
+            {
+                return RuleAction.MarkManualOverride;
+            }
+
+            return currentLayoutIsEnglish == desiredLayoutIsEnglish.Value
+                ? RuleAction.AlreadyCorrect
+                : RuleAction.ApplyLayout;
+        }
+
         private void ApplyRuleTo(IntPtr window)
         {
             string processName = ProcessNameResolver.GetProcessName(window);
@@ -101,25 +155,31 @@ namespace KeyboardLayoutSwitcher
                 return;
             }
 
-            if (manuallyOverridden.Contains(window))
-            {
-                return;
-            }
-
             bool currentLayoutIsEnglish = LayoutSwitcher.IsLayoutEnglishForWindow(window);
+            bool wasAppliedByUs = layoutAppliedByUs.TryGetValue(window, out bool previouslyApplied);
 
-            // Ми вже виставляли розкладку цьому вікну — перевіряємо, чи вона досі наша.
-            if (layoutAppliedByUs.TryGetValue(window, out bool previouslyApplied) && currentLayoutIsEnglish != previouslyApplied)
-            {
-                manuallyOverridden.Add(window);
-                TraceLogger.Trace($"Layout rule yields to manual choice: {processName}");
-                return;
-            }
+            RuleAction action = Decide(
+                desiredLayoutIsEnglish,
+                currentLayoutIsEnglish,
+                wasAppliedByUs,
+                previouslyApplied,
+                manuallyOverridden.Contains(window));
 
-            if (currentLayoutIsEnglish != desiredLayoutIsEnglish.Value)
+            switch (action)
             {
-                LayoutSwitcher.SetKeyboardLayout(window, desiredLayoutIsEnglish.Value);
-                TraceLogger.Trace($"Layout rule applied: {processName} -> {(desiredLayoutIsEnglish.Value ? "en" : "uk")}");
+                case RuleAction.NoRule:
+                case RuleAction.SkipOverridden:
+                    return;
+
+                case RuleAction.MarkManualOverride:
+                    manuallyOverridden.Add(window);
+                    TraceLogger.Trace($"Layout rule yields to manual choice: {processName}");
+                    return;
+
+                case RuleAction.ApplyLayout:
+                    LayoutSwitcher.SetKeyboardLayout(window, desiredLayoutIsEnglish.Value);
+                    TraceLogger.Trace($"Layout rule applied: {processName} -> {(desiredLayoutIsEnglish.Value ? "en" : "uk")}");
+                    break;
             }
 
             layoutAppliedByUs[window] = desiredLayoutIsEnglish.Value;
