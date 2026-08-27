@@ -7,6 +7,7 @@ namespace KeyboardLayoutSwitcher
     {
         private const int PrimaryLanguageMask = 0x03FF;
         private const int EnglishPrimaryLanguageId = 0x0009;
+        private const int UkrainianPrimaryLanguageId = 0x0022;
         private const uint KLF_ACTIVATE = 0x00000001;
         private const int WM_INPUTLANGCHANGEREQUEST = 0x0050;
 
@@ -75,8 +76,54 @@ namespace KeyboardLayoutSwitcher
                 return;
             }
 
-            IntPtr hkl = LoadKeyboardLayout(english ? EnglishUsKeyboardLayoutId : UkrainianKeyboardLayoutId, KLF_ACTIVATE);
-            PostMessage(window, WM_INPUTLANGCHANGEREQUEST, IntPtr.Zero, hkl);
+            PostMessage(window, WM_INPUTLANGCHANGEREQUEST, IntPtr.Zero, ResolveKeyboardLayout(english));
+        }
+
+        /// <summary>
+        /// Обирає серед уже завантажених розкладок першу з потрібною мовою.
+        ///
+        /// Жорсткий ідентифікатор ("00000422") тут не годиться: користувач цілком може мати
+        /// власну розкладку тієї ж мови (напр. "d0010422") і саме нею користуватись — тоді
+        /// LoadKeyboardLayout підсовував би стандартну, якою він не друкує. Порядок списку
+        /// відповідає порядку розкладок користувача, тому перша відповідна — та, що треба.
+        /// </summary>
+        public static IntPtr ResolveKeyboardLayout(bool english)
+        {
+            int targetPrimaryLanguage = english ? EnglishPrimaryLanguageId : UkrainianPrimaryLanguageId;
+
+            foreach (IntPtr layout in GetInstalledLayouts())
+            {
+                uint languageId = (uint)(layout.ToInt64() & 0xFFFF);
+                if ((languageId & PrimaryLanguageMask) == targetPrimaryLanguage)
+                {
+                    return layout;
+                }
+            }
+
+            // Потрібної мови серед завантажених немає — лишається завантажити стандартну.
+            return LoadKeyboardLayout(english ? EnglishUsKeyboardLayoutId : UkrainianKeyboardLayoutId, KLF_ACTIVATE);
+        }
+
+        /// <summary>
+        /// Розкладки, встановлені в системі, у порядку налаштувань користувача.
+        /// </summary>
+        public static IntPtr[] GetInstalledLayouts()
+        {
+            int layoutCount = GetKeyboardLayoutList(0, null);
+            if (layoutCount <= 0)
+            {
+                return new IntPtr[0];
+            }
+
+            IntPtr[] layouts = new IntPtr[layoutCount];
+            layoutCount = GetKeyboardLayoutList(layoutCount, layouts);
+
+            if (layoutCount < layouts.Length)
+            {
+                Array.Resize(ref layouts, Math.Max(0, layoutCount));
+            }
+
+            return layouts;
         }
 
         /// <summary>
@@ -107,6 +154,9 @@ namespace KeyboardLayoutSwitcher
 
         [DllImport("user32.dll", CharSet = CharSet.Auto)]
         private static extern IntPtr LoadKeyboardLayout(string pwszKLID, uint Flags);
+
+        [DllImport("user32.dll")]
+        private static extern int GetKeyboardLayoutList(int nBuff, [Out] IntPtr[] lpList);
 
         [DllImport("user32.dll", SetLastError = true)]
         private static extern bool PostMessage(IntPtr hWnd, int Msg, IntPtr wParam, IntPtr lParam);
