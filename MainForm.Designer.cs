@@ -38,6 +38,10 @@ namespace KeyboardLayoutSwitcher
         private Button btnRemoveLayoutRule;
         private Button btnPickActiveLayoutRule;
 
+        private GroupBox grpNotification;
+        private CheckBox chkFullScreenNotification;
+        private CheckBox chkNotifyOnAllScreens;
+
         private GroupBox grpEnterCorrection;
         private CheckBox chkSkipEnterCorrection;
         private TextBox txtSkipEnterProcesses;
@@ -96,6 +100,10 @@ namespace KeyboardLayoutSwitcher
             this.btnRemoveLayoutRule = new System.Windows.Forms.Button();
             this.btnPickActiveLayoutRule = new System.Windows.Forms.Button();
 
+            this.grpNotification = new System.Windows.Forms.GroupBox();
+            this.chkFullScreenNotification = new System.Windows.Forms.CheckBox();
+            this.chkNotifyOnAllScreens = new System.Windows.Forms.CheckBox();
+
             this.grpEnterCorrection = new System.Windows.Forms.GroupBox();
             this.chkSkipEnterCorrection = new System.Windows.Forms.CheckBox();
             this.txtSkipEnterProcesses = new System.Windows.Forms.TextBox();
@@ -111,6 +119,7 @@ namespace KeyboardLayoutSwitcher
             this.grpIgnoredWords.SuspendLayout();
             this.grpLayoutRules.SuspendLayout();
             this.grpEnterCorrection.SuspendLayout();
+            this.grpNotification.SuspendLayout();
             this.SuspendLayout();
 
             // chkEnableSwitching
@@ -150,7 +159,7 @@ namespace KeyboardLayoutSwitcher
             this.lblStatus.Text = "Автозаміна: увімкнено";
 
             // btnExit
-            this.btnExit.Location = new System.Drawing.Point(400, 601);
+            this.btnExit.Location = new System.Drawing.Point(400, 655);
             this.btnExit.Name = "btnExit";
             this.btnExit.Size = new System.Drawing.Size(120, 30);
             this.btnExit.TabIndex = 6;
@@ -217,7 +226,7 @@ namespace KeyboardLayoutSwitcher
             this.grpProcesses.Controls.Add(this.btnAddProcess);
             this.grpProcesses.Controls.Add(this.btnRemoveProcess);
             this.grpProcesses.Controls.Add(this.btnPickActive);
-            this.grpProcesses.Location = new System.Drawing.Point(12, 169);
+            this.grpProcesses.Location = new System.Drawing.Point(12, 223);
             this.grpProcesses.Name = "grpProcesses";
             this.grpProcesses.Size = new System.Drawing.Size(508, 140);
             this.grpProcesses.TabIndex = 4;
@@ -288,7 +297,7 @@ namespace KeyboardLayoutSwitcher
             this.grpLayoutRules.Controls.Add(this.btnRemoveLayoutRule);
             this.grpLayoutRules.Controls.Add(this.btnPickActiveLayoutRule);
             this.grpLayoutRules.Controls.Add(this.lstLayoutRules);
-            this.grpLayoutRules.Location = new System.Drawing.Point(12, 315);
+            this.grpLayoutRules.Location = new System.Drawing.Point(12, 369);
             this.grpLayoutRules.Name = "grpLayoutRules";
             this.grpLayoutRules.Size = new System.Drawing.Size(508, 140);
             this.grpLayoutRules.TabIndex = 7;
@@ -348,10 +357,36 @@ namespace KeyboardLayoutSwitcher
             this.lstLayoutRules.Size = new System.Drawing.Size(475, 49);
             this.lstLayoutRules.TabIndex = 5;
 
+            // grpNotification
+            this.grpNotification.Controls.Add(this.chkFullScreenNotification);
+            this.grpNotification.Controls.Add(this.chkNotifyOnAllScreens);
+            this.grpNotification.Location = new System.Drawing.Point(12, 95);
+            this.grpNotification.Name = "grpNotification";
+            this.grpNotification.Size = new System.Drawing.Size(508, 48);
+            this.grpNotification.TabIndex = 9;
+            this.grpNotification.TabStop = false;
+            this.grpNotification.Text = "Сповіщення про перемикання";
+
+            // chkFullScreenNotification
+            this.chkFullScreenNotification.AutoSize = true;
+            this.chkFullScreenNotification.Location = new System.Drawing.Point(17, 20);
+            this.chkFullScreenNotification.Name = "chkFullScreenNotification";
+            this.chkFullScreenNotification.Size = new System.Drawing.Size(140, 19);
+            this.chkFullScreenNotification.TabIndex = 0;
+            this.chkFullScreenNotification.Text = "На весь екран";
+
+            // chkNotifyOnAllScreens
+            this.chkNotifyOnAllScreens.AutoSize = true;
+            this.chkNotifyOnAllScreens.Location = new System.Drawing.Point(200, 20);
+            this.chkNotifyOnAllScreens.Name = "chkNotifyOnAllScreens";
+            this.chkNotifyOnAllScreens.Size = new System.Drawing.Size(160, 19);
+            this.chkNotifyOnAllScreens.TabIndex = 1;
+            this.chkNotifyOnAllScreens.Text = "На всіх моніторах";
+
             // grpEnterCorrection
             this.grpEnterCorrection.Controls.Add(this.chkSkipEnterCorrection);
             this.grpEnterCorrection.Controls.Add(this.txtSkipEnterProcesses);
-            this.grpEnterCorrection.Location = new System.Drawing.Point(12, 95);
+            this.grpEnterCorrection.Location = new System.Drawing.Point(12, 149);
             this.grpEnterCorrection.Name = "grpEnterCorrection";
             this.grpEnterCorrection.Size = new System.Drawing.Size(508, 68);
             this.grpEnterCorrection.TabIndex = 8;
@@ -379,7 +414,7 @@ namespace KeyboardLayoutSwitcher
             this.grpIgnoredWords.Controls.Add(this.txtNewIgnoredWord);
             this.grpIgnoredWords.Controls.Add(this.btnAddIgnoredWord);
             this.grpIgnoredWords.Controls.Add(this.btnRemoveIgnoredWord);
-            this.grpIgnoredWords.Location = new System.Drawing.Point(12, 461);
+            this.grpIgnoredWords.Location = new System.Drawing.Point(12, 515);
             this.grpIgnoredWords.Name = "grpIgnoredWords";
             this.grpIgnoredWords.Size = new System.Drawing.Size(508, 130);
             this.grpIgnoredWords.TabIndex = 5;
@@ -417,11 +452,12 @@ namespace KeyboardLayoutSwitcher
             // MainForm
             this.AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(534, 646);
+            this.ClientSize = new System.Drawing.Size(534, 700);
             this.Controls.Add(this.btnExit);
             this.Controls.Add(this.grpIgnoredWords);
             this.Controls.Add(this.grpLayoutRules);
             this.Controls.Add(this.grpEnterCorrection);
+            this.Controls.Add(this.grpNotification);
             this.Controls.Add(this.grpProcesses);
             this.Controls.Add(this.lblStatus);
             this.Controls.Add(this.chkRestoreApostrophes);
@@ -442,6 +478,8 @@ namespace KeyboardLayoutSwitcher
             this.grpIgnoredWords.ResumeLayout(false);
             this.grpLayoutRules.ResumeLayout(false);
             this.grpEnterCorrection.ResumeLayout(false);
+            this.grpNotification.ResumeLayout(false);
+            this.grpNotification.PerformLayout();
             this.grpEnterCorrection.PerformLayout();
             this.grpLayoutRules.PerformLayout();
             this.grpIgnoredWords.PerformLayout();

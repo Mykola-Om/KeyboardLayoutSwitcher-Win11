@@ -6,36 +6,73 @@ namespace KeyboardLayoutSwitcher
 {
     public class NotificationForm : Form
     {
-        private readonly System.Windows.Forms.Timer fadeTimer;
-        private double opacity = 1.0;
+        // Розмір кутової плашки.
+        private static readonly Size CornerSize = new Size(140, 40);
+        private const int CornerMargin = 25;
 
-        public NotificationForm(string text)
+        // Висота шрифту повноекранного напису — частка від висоти монітора.
+        private const double FullScreenFontHeightRatio = 0.12;
+
+        // Повноекранний напис не має закривати екран: прозорим лишається все, крім
+        // смуги по центру. Без неї білий текст губиться на світлому тлі.
+        private const double FullScreenOpacity = 0.8;
+
+        // Висота смуги-підкладки — частка від висоти монітора.
+        private const double FullScreenBandHeightRatio = 0.2;
+
+        // Колір, який стає прозорим. Береться такий, якого свідомо немає в оформленні.
+        private static readonly Color TransparentBackdrop = Color.Magenta;
+
+        private readonly System.Windows.Forms.Timer fadeTimer;
+        private readonly bool isFullScreen;
+        private readonly Screen targetScreen;
+        private double opacity;
+
+        public NotificationForm(string text, Screen screen, bool fullScreen)
         {
+            targetScreen = screen ?? Screen.PrimaryScreen;
+            isFullScreen = fullScreen;
+            opacity = fullScreen ? FullScreenOpacity : 1.0;
+
             this.FormBorderStyle = FormBorderStyle.None;
             this.ShowInTaskbar = false;
             this.TopMost = true;
-            this.Size = new Size(140, 40);
-            this.BackColor = Color.FromArgb(32, 32, 32);
             this.DoubleBuffered = true;
             this.StartPosition = FormStartPosition.Manual;
 
-            Label label = new Label
+            if (fullScreen)
             {
-                Text = text,
-                ForeColor = Color.White,
-                Font = new Font("Segoe UI", 10, FontStyle.Bold),
-                Dock = DockStyle.Fill,
-                TextAlign = ContentAlignment.MiddleCenter
-            };
-            this.Controls.Add(label);
+                // Фон прозорий, тож екран лишається видимим; малюємо лише смугу з написом.
+                this.BackColor = TransparentBackdrop;
+                this.TransparencyKey = TransparentBackdrop;
+                this.Bounds = targetScreen.Bounds;
+                this.Paint += (s, e) => PaintFullScreenBanner(e.Graphics, text);
+            }
+            else
+            {
+                this.BackColor = Color.FromArgb(32, 32, 32);
+                this.Size = CornerSize;
 
-            this.Paint += (s, e) =>
-            {
-                using (Pen pen = new Pen(Color.FromArgb(64, 64, 64), 1))
+                this.Controls.Add(new Label
                 {
-                    e.Graphics.DrawRectangle(pen, 0, 0, this.Width - 1, this.Height - 1);
-                }
-            };
+                    Text = text,
+                    ForeColor = Color.White,
+                    Font = new Font("Segoe UI", 10, FontStyle.Bold),
+                    Dock = DockStyle.Fill,
+                    TextAlign = ContentAlignment.MiddleCenter,
+                    BackColor = Color.Transparent
+                });
+
+                this.Paint += (s, e) =>
+                {
+                    using (Pen pen = new Pen(Color.FromArgb(64, 64, 64), 1))
+                    {
+                        e.Graphics.DrawRectangle(pen, 0, 0, this.Width - 1, this.Height - 1);
+                    }
+                };
+            }
+
+            this.Opacity = opacity;
 
             fadeTimer = new System.Windows.Forms.Timer { Interval = 40 };
             fadeTimer.Tick += (s, e) =>
@@ -51,30 +88,44 @@ namespace KeyboardLayoutSwitcher
                     this.Opacity = opacity;
                 }
             };
- 
+
             var waitTimer = new System.Windows.Forms.Timer { Interval = 800 };
             waitTimer.Tick += (s, e) =>
             {
                 waitTimer.Stop();
                 fadeTimer.Start();
             };
- 
+
             this.Load += (s, e) =>
             {
-                // Position at bottom-right above taskbar of the active monitor
-                IntPtr foregroundWindow = Win32Interop.GetForegroundWindow();
-                Screen activeScreen = foregroundWindow != IntPtr.Zero 
-                    ? Screen.FromHandle(foregroundWindow) 
-                    : Screen.PrimaryScreen;
-
-                Rectangle workingArea = activeScreen.WorkingArea;
-                this.Location = new Point(
-                    workingArea.Right - this.Width - 25,
-                    workingArea.Bottom - this.Height - 25
-                );
+                if (!isFullScreen)
+                {
+                    Rectangle workingArea = targetScreen.WorkingArea;
+                    this.Location = new Point(
+                        workingArea.Right - this.Width - CornerMargin,
+                        workingArea.Bottom - this.Height - CornerMargin);
+                }
 
                 waitTimer.Start();
             };
+        }
+
+        private void PaintFullScreenBanner(Graphics graphics, string text)
+        {
+            int bandHeight = (int)(this.Height * FullScreenBandHeightRatio);
+            var band = new Rectangle(0, (this.Height - bandHeight) / 2, this.Width, bandHeight);
+
+            using (var brush = new SolidBrush(Color.FromArgb(24, 24, 24)))
+            {
+                graphics.FillRectangle(brush, band);
+            }
+
+            using (var font = new Font("Segoe UI", bandHeight * 0.5f, FontStyle.Bold, GraphicsUnit.Pixel))
+            using (var format = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
+            {
+                graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAlias;
+                graphics.DrawString(text, font, Brushes.White, band, format);
+            }
         }
 
         protected override CreateParams CreateParams
@@ -82,30 +133,45 @@ namespace KeyboardLayoutSwitcher
             get
             {
                 CreateParams cp = base.CreateParams;
-                // WS_EX_NOACTIVATE (0x08000000) prevents focus
-                // WS_EX_TOOLWINDOW (0x00000080) hides from Alt+Tab
-                cp.ExStyle |= 0x08000000 | 0x00000080;
+                // WS_EX_NOACTIVATE (0x08000000) — не забирає фокус, тож набір не переривається
+                // WS_EX_TOOLWINDOW (0x00000080) — не показується в Alt+Tab
+                // WS_EX_TRANSPARENT (0x00000020) — кліки миші проходять наскрізь; без цього
+                //   повноекранне вікно перехоплювало б їх і робило екран непридатним
+                cp.ExStyle |= 0x08000000 | 0x00000080 | 0x00000020;
                 return cp;
             }
         }
 
-        public static void ShowNotification(string text)
+        public static void ShowNotification(string text, AppSettings settings)
         {
             if (MainForm.Instance != null && MainForm.Instance.InvokeRequired)
             {
-                MainForm.Instance.BeginInvoke(new Action(() => ShowNotification(text)));
+                MainForm.Instance.BeginInvoke(new Action(() => ShowNotification(text, settings)));
                 return;
             }
 
             try
             {
-                NotificationForm form = new NotificationForm(text);
-                form.Show();
+                bool fullScreen = settings != null && settings.FullScreenNotification;
+                bool allScreens = settings != null && settings.NotifyOnAllScreens;
+
+                foreach (Screen screen in allScreens ? Screen.AllScreens : new[] { GetActiveScreen() })
+                {
+                    new NotificationForm(text, screen, fullScreen).Show();
+                }
             }
             catch (Exception ex)
             {
                 TraceLogger.Trace($"Failed to show notification: {ex.Message}");
             }
+        }
+
+        private static Screen GetActiveScreen()
+        {
+            IntPtr foregroundWindow = Win32Interop.GetForegroundWindow();
+            return foregroundWindow != IntPtr.Zero
+                ? Screen.FromHandle(foregroundWindow)
+                : Screen.PrimaryScreen;
         }
     }
 }

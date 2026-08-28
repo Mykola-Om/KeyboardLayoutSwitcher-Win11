@@ -56,6 +56,8 @@ namespace KeyboardLayoutSwitcher
             cmbProcessMode.SelectedIndexChanged += SettingsControlChanged;
             chkEnableLayoutRules.CheckedChanged += SettingsControlChanged;
             chkSkipEnterCorrection.CheckedChanged += SettingsControlChanged;
+            chkFullScreenNotification.CheckedChanged += SettingsControlChanged;
+            chkNotifyOnAllScreens.CheckedChanged += SettingsControlChanged;
             txtSkipEnterProcesses.Leave += SettingsControlChanged;
             
             btnExit.Click += BtnExit_Click;
@@ -87,6 +89,8 @@ namespace KeyboardLayoutSwitcher
 
             tip.SetToolTip(chkRestoreApostrophes, "Додає пропущений апостроф в українських словах:\r\nпамять → пам'ять, компютер → комп'ютер, сімя → сім'я.\r\nПрацює за словником, тож слова без апострофа (свято, цвях) не чіпає.");
             tip.SetToolTip(chkSkipEnterCorrection, "У адресному рядку браузера Enter підтверджує підказку автодоповнення.\r\nЯкщо втрутитись саме там, браузер піде шукати замість переходу на сайт.\r\nПеречисли процеси через кому. В інших програмах Enter працює як раніше.");
+            tip.SetToolTip(chkFullScreenNotification, "Замість плашки в кутку показує великий напис по центру екрана.\r\nНапис напівпрозорий і не перехоплює ні клавіатуру, ні мишу.");
+            tip.SetToolTip(chkNotifyOnAllScreens, "Показувати сповіщення одразу на всіх моніторах,\r\nа не лише на тому, де зараз активне вікно.");
             tip.SetToolTip(chkEnableLayoutRules, "Коли ти переходиш у вікно програми зі списку,\r\nрозкладка автоматично стає заданою.\r\nЯкщо перемкнеш її вручну — це вікно більше не чіпається.");
         }
 
@@ -431,6 +435,8 @@ namespace KeyboardLayoutSwitcher
             chkEnableLayoutRules.Checked = settings.EnableLayoutRules;
             PopulateListFromText(lstLayoutRules, settings.LayoutRulesText);
             chkSkipEnterCorrection.Checked = settings.SkipEnterCorrection;
+            chkFullScreenNotification.Checked = settings.FullScreenNotification;
+            chkNotifyOnAllScreens.Checked = settings.NotifyOnAllScreens;
             txtSkipEnterProcesses.Text = settings.SkipEnterCorrectionProcessesText;
             cmbProcessMode.SelectedIndex = (int)settings.ProcessFilterMode;
             PopulateListFromText(lstProcesses, settings.ProcessFilterText);
@@ -471,6 +477,8 @@ namespace KeyboardLayoutSwitcher
             settings.EnableLayoutRules = chkEnableLayoutRules.Checked;
             settings.LayoutRulesText = JoinListItems(lstLayoutRules);
             settings.SkipEnterCorrection = chkSkipEnterCorrection.Checked;
+            settings.FullScreenNotification = chkFullScreenNotification.Checked;
+            settings.NotifyOnAllScreens = chkNotifyOnAllScreens.Checked;
             settings.SkipEnterCorrectionProcessesText = txtSkipEnterProcesses.Text;
             if (cmbProcessMode.SelectedIndex >= 0) settings.ProcessFilterMode = (ProcessFilterMode)cmbProcessMode.SelectedIndex;
             settings.ProcessFilterText = JoinListItems(lstProcesses);

@@ -55,6 +55,12 @@ namespace KeyboardLayoutSwitcher
         // Відновлення пропущеного апострофа в українських словах ("память" -> "пам'ять").
         public bool RestoreApostrophes { get; set; } = true;
 
+        // Сповіщення про перемикання розкладки на весь екран замість плашки в кутку.
+        public bool FullScreenNotification { get; set; } = false;
+
+        // Показувати сповіщення одразу на всіх моніторах, а не лише на активному.
+        public bool NotifyOnAllScreens { get; set; } = false;
+
         public ProcessFilterMode ProcessFilterMode { get; set; } = ProcessFilterMode.Disabled;
 
         public string ProcessFilterText

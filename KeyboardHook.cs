@@ -314,7 +314,7 @@ namespace KeyboardLayoutSwitcher
 
             // Trigger visual notification overlay
             string transitionText = oldLayout ? "EN → UA" : "UA → EN";
-            NotificationForm.ShowNotification(transitionText);
+            NotificationForm.ShowNotification(transitionText, settings);
 
             // Store undo state
             currentUndoState = new UndoState(word, correctedWord.Length, oldLayout, boundaryChar);
