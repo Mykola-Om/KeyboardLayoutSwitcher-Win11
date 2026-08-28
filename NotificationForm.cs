@@ -10,18 +10,12 @@ namespace KeyboardLayoutSwitcher
         private static readonly Size CornerSize = new Size(140, 40);
         private const int CornerMargin = 25;
 
-        // Висота шрифту повноекранного напису — частка від висоти монітора.
+        // Повноекранний режим: увесь екран рівномірно притемнюється, а по центру —
+        // великий напис. Значення підібране так, щоб вміст під ним лишався видимим.
+        private const double FullScreenOpacity = 0.45;
+
+        // Висота напису — частка від висоти монітора.
         private const double FullScreenFontHeightRatio = 0.12;
-
-        // Повноекранний напис не має закривати екран: прозорим лишається все, крім
-        // смуги по центру. Без неї білий текст губиться на світлому тлі.
-        private const double FullScreenOpacity = 0.8;
-
-        // Висота смуги-підкладки — частка від висоти монітора.
-        private const double FullScreenBandHeightRatio = 0.2;
-
-        // Колір, який стає прозорим. Береться такий, якого свідомо немає в оформленні.
-        private static readonly Color TransparentBackdrop = Color.Magenta;
 
         private readonly System.Windows.Forms.Timer fadeTimer;
         private readonly bool isFullScreen;
@@ -42,9 +36,7 @@ namespace KeyboardLayoutSwitcher
 
             if (fullScreen)
             {
-                // Фон прозорий, тож екран лишається видимим; малюємо лише смугу з написом.
-                this.BackColor = TransparentBackdrop;
-                this.TransparencyKey = TransparentBackdrop;
+                this.BackColor = Color.FromArgb(24, 24, 24);
                 this.Bounds = targetScreen.Bounds;
                 this.Paint += (s, e) => PaintFullScreenBanner(e.Graphics, text);
             }
@@ -112,19 +104,11 @@ namespace KeyboardLayoutSwitcher
 
         private void PaintFullScreenBanner(Graphics graphics, string text)
         {
-            int bandHeight = (int)(this.Height * FullScreenBandHeightRatio);
-            var band = new Rectangle(0, (this.Height - bandHeight) / 2, this.Width, bandHeight);
-
-            using (var brush = new SolidBrush(Color.FromArgb(24, 24, 24)))
-            {
-                graphics.FillRectangle(brush, band);
-            }
-
-            using (var font = new Font("Segoe UI", bandHeight * 0.5f, FontStyle.Bold, GraphicsUnit.Pixel))
+            using (var font = new Font("Segoe UI", (float)(this.Height * FullScreenFontHeightRatio), FontStyle.Bold, GraphicsUnit.Pixel))
             using (var format = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
             {
                 graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAlias;
-                graphics.DrawString(text, font, Brushes.White, band, format);
+                graphics.DrawString(text, font, Brushes.White, this.ClientRectangle, format);
             }
         }
 
