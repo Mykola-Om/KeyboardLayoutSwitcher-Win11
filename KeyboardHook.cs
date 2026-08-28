@@ -284,14 +284,14 @@ namespace KeyboardLayoutSwitcher
 
             if (!state.LayoutWasSwitched)
             {
-                inputReplacer.QueueSameLayoutUndo(backspaces, state.OriginalWord);
+                inputReplacer.ApplySameLayoutUndo(backspaces, state.OriginalWord);
                 return;
             }
 
             bool targetLayoutIsEnglish = state.OriginalLayoutIsEnglish;
             isEnglishLayout = targetLayoutIsEnglish;
 
-            inputReplacer.QueueUndo(backspaces, state.OriginalWord, targetLayoutIsEnglish);
+            inputReplacer.ApplyUndo(backspaces, state.OriginalWord, targetLayoutIsEnglish);
         }
 
         private bool TryReplaceCurrentWordAtBoundary(char boundaryChar, ref bool currentLayoutIsEnglish)
@@ -319,7 +319,7 @@ namespace KeyboardLayoutSwitcher
             // Store undo state
             currentUndoState = new UndoState(word, correctedWord.Length, oldLayout, boundaryChar);
 
-            inputReplacer.QueueReplacement(word.Length, correctedWord, boundaryChar, oldLayout);
+            inputReplacer.ApplyReplacement(word.Length, correctedWord, boundaryChar, oldLayout);
             wordTracker.Clear();
             lastBoundaryChar = '\0';
             return true;
@@ -345,7 +345,7 @@ namespace KeyboardLayoutSwitcher
 
             currentUndoState = new UndoState(word, correctedWord.Length, currentLayoutIsEnglish, boundaryChar, layoutWasSwitched: false);
 
-            inputReplacer.QueueSameLayoutReplacement(word.Length, correctedWord, boundaryChar);
+            inputReplacer.ApplySameLayoutReplacement(word.Length, correctedWord, boundaryChar);
             wordTracker.Clear();
             lastBoundaryChar = '\0';
             return true;

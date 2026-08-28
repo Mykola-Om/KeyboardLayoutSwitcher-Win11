@@ -5,6 +5,15 @@ using System.Threading;
 
 namespace KeyboardLayoutSwitcher
 {
+    /// <summary>
+    /// Переписує щойно набране слово: стирає його бекспейсами й вводить виправлений варіант.
+    ///
+    /// Виконується синхронно, прямо у виклику клавіатурного хука, і це принципово. Поки хук
+    /// не повернувся, наступні натискання чекають у черзі вводу — тобто наші бекспейси
+    /// гарантовано опиняються в тексті раніше за них. Коли ця робота відкладалась на цикл
+    /// повідомлень, швидкий друк давав гонку: літера, натиснута одразу після пробілу,
+    /// встигала потрапити в текст і її з'їдав бекспейс ("крісло масажер" -> "rкрісло асажер").
+    /// </summary>
     public class InputReplacer
     {
         // Час, який даємо Windows застосувати WM_INPUTLANGCHANGEREQUEST перед відправкою
@@ -12,138 +21,126 @@ namespace KeyboardLayoutSwitcher
         // розкладки, і символи йдуть у старій розкладці.
         private const int LayoutSwitchSettleDelayMs = 10;
 
-        private readonly SynchronizationContext synchronizationContext;
         private bool isReplacing;
-
-        public InputReplacer()
-        {
-            synchronizationContext = SynchronizationContext.Current ?? new SynchronizationContext();
-        }
 
         public bool IsReplacing => isReplacing;
 
-        public void QueueReplacement(int originalLength, string correctedWord, char boundaryChar, bool oldLayout)
+        public void ApplyReplacement(int originalLength, string correctedWord, char boundaryChar, bool oldLayout)
         {
-            QueueReplacement(originalLength, correctedWord, boundaryChar, oldLayout, switchLayout: true);
+            ApplyReplacement(originalLength, correctedWord, boundaryChar, oldLayout, switchLayout: true);
         }
 
         /// <summary>
         /// Замінює слово, не чіпаючи розкладку. Використовується для виправлень у межах
         /// однієї мови (напр. відновлення апострофа), де перемикати розкладку не треба.
         /// </summary>
-        public void QueueSameLayoutReplacement(int originalLength, string correctedWord, char boundaryChar)
+        public void ApplySameLayoutReplacement(int originalLength, string correctedWord, char boundaryChar)
         {
-            QueueReplacement(originalLength, correctedWord, boundaryChar, oldLayout: false, switchLayout: false);
+            ApplyReplacement(originalLength, correctedWord, boundaryChar, oldLayout: false, switchLayout: false);
         }
 
-        private void QueueReplacement(int originalLength, string correctedWord, char boundaryChar, bool oldLayout, bool switchLayout)
+        private void ApplyReplacement(int originalLength, string correctedWord, char boundaryChar, bool oldLayout, bool switchLayout)
         {
             isReplacing = true;
-            synchronizationContext.Post(_ =>
+            try
             {
-                try
+                if (switchLayout)
                 {
-                    if (switchLayout)
-                    {
-                        bool dummyLayout = oldLayout;
-                        LayoutSwitcher.SwitchKeyboardLayout(ref dummyLayout);
+                    bool dummyLayout = oldLayout;
+                    LayoutSwitcher.SwitchKeyboardLayout(ref dummyLayout);
 
-                        Thread.Sleep(LayoutSwitchSettleDelayMs);
-                    }
-
-                    List<Win32Interop.INPUT> inputs = new List<Win32Interop.INPUT>();
-
-                    for (int i = 0; i < originalLength; i++)
-                    {
-                        inputs.Add(CreateKeyInput(Win32Interop.VK_BACK, false));
-                        inputs.Add(CreateKeyInput(Win32Interop.VK_BACK, true));
-                    }
-
-                    foreach (char c in correctedWord)
-                    {
-                        inputs.AddRange(CreateUnicodeInput(c));
-                    }
-
-                    if (boundaryChar == '\r' || boundaryChar == '\n')
-                    {
-                        inputs.Add(CreateKeyInput(Win32Interop.VK_RETURN, false));
-                        inputs.Add(CreateKeyInput(Win32Interop.VK_RETURN, true));
-                    }
-                    else if (boundaryChar == '\t')
-                    {
-                        inputs.Add(CreateKeyInput(Win32Interop.VK_TAB, false));
-                        inputs.Add(CreateKeyInput(Win32Interop.VK_TAB, true));
-                    }
-                    else if (boundaryChar != '\0' && boundaryChar != '\u0001')
-                    {
-                        inputs.AddRange(CreateUnicodeInput(boundaryChar));
-                    }
-
-                    Win32Interop.SendInput((uint)inputs.Count, inputs.ToArray(), Marshal.SizeOf(typeof(Win32Interop.INPUT)));
+                    Thread.Sleep(LayoutSwitchSettleDelayMs);
                 }
-                catch (Exception e)
+
+                List<Win32Interop.INPUT> inputs = new List<Win32Interop.INPUT>();
+
+                for (int i = 0; i < originalLength; i++)
                 {
-                    TraceLogger.Trace($"Error in replacement: {e.Message}");
+                    inputs.Add(CreateKeyInput(Win32Interop.VK_BACK, false));
+                    inputs.Add(CreateKeyInput(Win32Interop.VK_BACK, true));
                 }
-                finally
+
+                foreach (char c in correctedWord)
                 {
-                    isReplacing = false;
+                    inputs.AddRange(CreateUnicodeInput(c));
                 }
-            }, null);
+
+                if (boundaryChar == '\r' || boundaryChar == '\n')
+                {
+                    inputs.Add(CreateKeyInput(Win32Interop.VK_RETURN, false));
+                    inputs.Add(CreateKeyInput(Win32Interop.VK_RETURN, true));
+                }
+                else if (boundaryChar == '\t')
+                {
+                    inputs.Add(CreateKeyInput(Win32Interop.VK_TAB, false));
+                    inputs.Add(CreateKeyInput(Win32Interop.VK_TAB, true));
+                }
+                else if (boundaryChar != '\0' && boundaryChar != '\u0001')
+                {
+                    inputs.AddRange(CreateUnicodeInput(boundaryChar));
+                }
+
+                Win32Interop.SendInput((uint)inputs.Count, inputs.ToArray(), Marshal.SizeOf(typeof(Win32Interop.INPUT)));
+            }
+            catch (Exception e)
+            {
+                TraceLogger.Trace($"Error in replacement: {e.Message}");
+            }
+            finally
+            {
+                isReplacing = false;
+            }
         }
 
-        public void QueueUndo(int backspaceCount, string originalWord, bool targetLayoutIsEnglish)
+        public void ApplyUndo(int backspaceCount, string originalWord, bool targetLayoutIsEnglish)
         {
-            QueueUndo(backspaceCount, originalWord, targetLayoutIsEnglish, switchLayout: true);
+            ApplyUndo(backspaceCount, originalWord, targetLayoutIsEnglish, switchLayout: true);
         }
 
         /// <summary>
         /// Скасування виправлення, зробленого без перемикання розкладки.
         /// </summary>
-        public void QueueSameLayoutUndo(int backspaceCount, string originalWord)
+        public void ApplySameLayoutUndo(int backspaceCount, string originalWord)
         {
-            QueueUndo(backspaceCount, originalWord, targetLayoutIsEnglish: false, switchLayout: false);
+            ApplyUndo(backspaceCount, originalWord, targetLayoutIsEnglish: false, switchLayout: false);
         }
 
-        private void QueueUndo(int backspaceCount, string originalWord, bool targetLayoutIsEnglish, bool switchLayout)
+        private void ApplyUndo(int backspaceCount, string originalWord, bool targetLayoutIsEnglish, bool switchLayout)
         {
             isReplacing = true;
-            synchronizationContext.Post(_ =>
+            try
             {
-                try
+                if (switchLayout)
                 {
-                    if (switchLayout)
-                    {
-                        bool switchLayoutState = !targetLayoutIsEnglish;
-                        LayoutSwitcher.SwitchKeyboardLayout(ref switchLayoutState);
+                    bool switchLayoutState = !targetLayoutIsEnglish;
+                    LayoutSwitcher.SwitchKeyboardLayout(ref switchLayoutState);
 
-                        Thread.Sleep(LayoutSwitchSettleDelayMs);
-                    }
-
-                    List<Win32Interop.INPUT> inputs = new List<Win32Interop.INPUT>();
-
-                    for (int i = 0; i < backspaceCount; i++)
-                    {
-                        inputs.Add(CreateKeyInput(Win32Interop.VK_BACK, false));
-                        inputs.Add(CreateKeyInput(Win32Interop.VK_BACK, true));
-                    }
-
-                    foreach (char c in originalWord)
-                    {
-                        inputs.AddRange(CreateUnicodeInput(c));
-                    }
-
-                    Win32Interop.SendInput((uint)inputs.Count, inputs.ToArray(), Marshal.SizeOf(typeof(Win32Interop.INPUT)));
+                    Thread.Sleep(LayoutSwitchSettleDelayMs);
                 }
-                catch (Exception e)
+
+                List<Win32Interop.INPUT> inputs = new List<Win32Interop.INPUT>();
+
+                for (int i = 0; i < backspaceCount; i++)
                 {
-                    TraceLogger.Trace($"Error in undo: {e.Message}");
+                    inputs.Add(CreateKeyInput(Win32Interop.VK_BACK, false));
+                    inputs.Add(CreateKeyInput(Win32Interop.VK_BACK, true));
                 }
-                finally
+
+                foreach (char c in originalWord)
                 {
-                    isReplacing = false;
+                    inputs.AddRange(CreateUnicodeInput(c));
                 }
-            }, null);
+
+                Win32Interop.SendInput((uint)inputs.Count, inputs.ToArray(), Marshal.SizeOf(typeof(Win32Interop.INPUT)));
+            }
+            catch (Exception e)
+            {
+                TraceLogger.Trace($"Error in undo: {e.Message}");
+            }
+            finally
+            {
+                isReplacing = false;
+            }
         }
 
         private static Win32Interop.INPUT CreateKeyInput(int wVk, bool isKeyUp)
