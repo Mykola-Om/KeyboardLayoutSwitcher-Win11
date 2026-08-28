@@ -3,7 +3,7 @@ using System;
 namespace KeyboardLayoutSwitcher.Tests
 {
     /// <summary>
-    /// Unit tests for AppSettings list parsing (ProcessNames/IgnoredWords).
+    /// Unit tests for AppSettings list parsing (ProcessNames/UserWords).
     /// </summary>
     public class AppSettingsTests : TestBase
     {
@@ -13,7 +13,7 @@ namespace KeyboardLayoutSwitcher.Tests
 
             TestProcessNamesSplitsOnAllDelimiters();
             TestProcessNamesNormalizesExeSuffixAndCase();
-            TestIgnoredWordsSplitsOnAllDelimiters();
+            TestUserWordsSplitOnAllDelimiters();
             TestProcessNamesCacheInvalidatesOnTextChange();
             TestLayoutRulesParsing();
             TestLayoutRulesIgnoreMalformedEntries();
@@ -85,7 +85,7 @@ namespace KeyboardLayoutSwitcher.Tests
 
         private void TestProcessNamesSplitsOnAllDelimiters()
         {
-            // Regression test: ProcessNames/IgnoredWords must split on the same delimiter
+            // Regression test: ProcessNames/UserWords must split on the same delimiter
             // set (AppSettings.ListDelimiters) that the UI uses to populate its list boxes,
             // otherwise a ';'-separated entry saved in settings.xml would parse here but
             // silently fail to show up in the UI (or vice versa).
@@ -109,16 +109,16 @@ namespace KeyboardLayoutSwitcher.Tests
             Console.WriteLine("✓ ProcessNames normalizes .exe suffix and casing");
         }
 
-        private void TestIgnoredWordsSplitsOnAllDelimiters()
+        private void TestUserWordsSplitOnAllDelimiters()
         {
-            var settings = new AppSettings { IgnoredWordsText = "скрін\nфільтр,інфо;тест" };
+            var settings = new AppSettings { UserWordsText = "скрін\nфільтр,інфо;тест" };
 
-            Assert(settings.IgnoredWords.Contains("скрін"), "Expected 'скрін' to be parsed");
-            Assert(settings.IgnoredWords.Contains("фільтр"), "Expected 'фільтр' to be parsed");
-            Assert(settings.IgnoredWords.Contains("інфо"), "Expected 'інфо' to be parsed");
-            Assert(settings.IgnoredWords.Contains("тест"), "Expected ';'-separated 'тест' to be parsed");
+            Assert(settings.UserWords.Contains("скрін"), "Expected 'скрін' to be parsed");
+            Assert(settings.UserWords.Contains("фільтр"), "Expected 'фільтр' to be parsed");
+            Assert(settings.UserWords.Contains("інфо"), "Expected 'інфо' to be parsed");
+            Assert(settings.UserWords.Contains("тест"), "Expected ';'-separated 'тест' to be parsed");
 
-            Console.WriteLine("✓ IgnoredWords splits on \\r, \\n, ',', ';'");
+            Console.WriteLine("✓ UserWords split on \\r, \\n, ',', ';'");
         }
 
         private void TestProcessNamesCacheInvalidatesOnTextChange()

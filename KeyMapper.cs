@@ -137,6 +137,10 @@ namespace KeyboardLayoutSwitcher
 
         private static readonly Dictionary<char, char> ukrToEngMap = BuildReverseMap();
 
+        // Слова, додані користувачем; доповнюють словники вище.
+        private static readonly HashSet<string> userEnglishWords = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        private static readonly HashSet<string> userUkrainianWords = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
         // Пари сусідніх приголосних, що реально зустрічаються у словах кожної мови.
         private static readonly HashSet<string> englishConsonantBigrams = new HashSet<string>(StringComparer.Ordinal);
         private static readonly HashSet<string> ukrainianConsonantBigrams = new HashSet<string>(StringComparer.Ordinal);
@@ -438,10 +442,6 @@ namespace KeyboardLayoutSwitcher
                 return false;
             }
 
-            if (settings != null && settings.IgnoredWords != null && settings.IgnoredWords.Contains(word))
-            {
-                return false; // User explicitly ignored this word
-            }
 
             if (MatchesFrequentWord(convertedWord, !isEnglishLayout) &&
                 sourceMappedChars >= Math.Max(1, word.Length - AlmostFullyMappedTolerance))
@@ -581,8 +581,66 @@ namespace KeyboardLayoutSwitcher
             }
 
             return isEnglishLayout
-                ? commonEnglishWords.Contains(normalizedWord)
-                : commonUkrainianWords.Contains(normalizedWord);
+                ? commonEnglishWords.Contains(normalizedWord) || userEnglishWords.Contains(normalizedWord)
+                : commonUkrainianWords.Contains(normalizedWord) || userUkrainianWords.Contains(normalizedWord);
+        }
+
+        /// <summary>
+        /// Замінює слова користувача, які доповнюють вбудований словник. Мова визначається
+        /// за абеткою самого слова, тож окремо її вказувати не треба.
+        ///
+        /// Слова користувача навмисно не потрапляють у набір біграм: той визначає суворість
+        /// евристики й будується на тисячах слів, а кілька доданих вручну лише зашумили б його.
+        /// </summary>
+        public static void SetUserWords(IEnumerable<string> words)
+        {
+            userEnglishWords.Clear();
+            userUkrainianWords.Clear();
+
+            if (words == null)
+            {
+                ClearCache();
+                return;
+            }
+
+            foreach (string word in words)
+            {
+                string normalizedWord = NormalizeWord(word);
+                if (string.IsNullOrEmpty(normalizedWord))
+                {
+                    continue;
+                }
+
+                bool hasCyrillic = false;
+                bool hasLatin = false;
+
+                foreach (char character in normalizedWord)
+                {
+                    if (character >= 'а' && character <= 'ӿ' || character == 'ї' || character == 'є' || character == 'і')
+                    {
+                        hasCyrillic = true;
+                    }
+                    else if (character >= 'a' && character <= 'z')
+                    {
+                        hasLatin = true;
+                    }
+                }
+
+                // Слово без літер (цифри, символи) кладемо в обидва набори — так воно
+                // лишиться недоторканим у будь-якій розкладці.
+                if (hasCyrillic || !hasLatin)
+                {
+                    userUkrainianWords.Add(normalizedWord);
+                }
+
+                if (hasLatin || !hasCyrillic)
+                {
+                    userEnglishWords.Add(normalizedWord);
+                }
+            }
+
+            // Вердикти в кеші могли спиратись на попередній список.
+            ClearCache();
         }
 
         private static string NormalizeWord(string word)

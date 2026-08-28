@@ -419,7 +419,7 @@ namespace KeyboardLayoutSwitcher
             this.grpIgnoredWords.Size = new System.Drawing.Size(508, 130);
             this.grpIgnoredWords.TabIndex = 5;
             this.grpIgnoredWords.TabStop = false;
-            this.grpIgnoredWords.Text = "Слова-винятки (не перекладати)";
+            this.grpIgnoredWords.Text = "Мої слова (доповнюють словник)";
 
             // txtNewIgnoredWord
             this.txtNewIgnoredWord.Location = new System.Drawing.Point(17, 25);

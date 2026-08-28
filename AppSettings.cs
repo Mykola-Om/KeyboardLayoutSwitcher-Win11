@@ -19,7 +19,7 @@ namespace KeyboardLayoutSwitcher
         // щоб дві копії не розійшлись.
         public const int DefaultMinimumMappedPercent = 80;
 
-        // Спільний набір розділювачів для ProcessFilterText/IgnoredWordsText — і для парсингу
+        // Спільний набір розділювачів для ProcessFilterText/UserWordsText — і для парсингу
         // тут, і для наповнення відповідних ListBox у MainForm, щоб обидва місця розуміли
         // текст однаково (раніше MainForm використовував інший набір без ';').
         public static readonly char[] ListDelimiters = { '\r', '\n', ',', ';' };
@@ -33,11 +33,11 @@ namespace KeyboardLayoutSwitcher
         public const string UkrainianLayoutTag = "uk";
 
         private string processFilterText = string.Empty;
-        private string ignoredWordsText = string.Empty;
+        private string userWordsText = string.Empty;
         private string layoutRulesText = string.Empty;
         private string skipEnterCorrectionProcessesText = DefaultSkipEnterCorrectionProcesses;
         private HashSet<string> cachedProcessNames;
-        private HashSet<string> cachedIgnoredWords;
+        private HashSet<string> cachedUserWords;
         private Dictionary<string, bool> cachedLayoutRules;
         private HashSet<string> cachedSkipEnterCorrectionProcesses;
 
@@ -73,13 +73,16 @@ namespace KeyboardLayoutSwitcher
             }
         }
 
-        public string IgnoredWordsText
+        // Слова користувача, які доповнюють вбудований словник. Ім'я XML-елемента лишилось
+        // від попередньої назви ("винятки"), щоб уже збережені налаштування не загубились.
+        [XmlElement("IgnoredWordsText")]
+        public string UserWordsText
         {
-            get { return ignoredWordsText; }
+            get { return userWordsText; }
             set
             {
-                ignoredWordsText = value ?? string.Empty;
-                cachedIgnoredWords = null;
+                userWordsText = value ?? string.Empty;
+                cachedUserWords = null;
             }
         }
 
@@ -214,15 +217,15 @@ namespace KeyboardLayoutSwitcher
         }
 
         [XmlIgnore]
-        public HashSet<string> IgnoredWords
+        public HashSet<string> UserWords
         {
             get
             {
-                if (cachedIgnoredWords == null)
+                if (cachedUserWords == null)
                 {
-                    cachedIgnoredWords = ParseList(IgnoredWordsText, word => word.Trim());
+                    cachedUserWords = ParseList(UserWordsText, word => word.Trim());
                 }
-                return cachedIgnoredWords;
+                return cachedUserWords;
             }
         }
 

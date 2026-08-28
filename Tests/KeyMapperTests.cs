@@ -26,8 +26,8 @@ namespace KeyboardLayoutSwitcher.Tests
             TestIsWrongLayoutShortWord();
             TestConvertWordEnglishToUkrainian();
             TestConvertWordUkrainianToEnglish();
-            TestIgnoredWords();
-            TestClearCacheInvalidatesStaleIgnoredWord();
+            TestUserWordProtectsTheTypedForm();
+            TestUserWordsInvalidateStaleCache();
             TestMixedLayout();
             TestExcludeDotEnvInEnglishLayout();
             TestConvertDotEnvInUkrainianLayout();
@@ -42,6 +42,7 @@ namespace KeyboardLayoutSwitcher.Tests
             TestExcludePathSlashes();
             TestKeepUkrainianWordsWithBalancedVowels();
             TestStillConvertsMistypedUkrainianWords();
+            TestUserWordsExtendTheDictionary();
             TestCacheKeepsBoundaryContextSeparate();
             TestRestoresMissingApostrophe();
             TestRestoreApostrophePreservesCase();
@@ -109,6 +110,35 @@ namespace KeyboardLayoutSwitcher.Tests
             Assert(plainAfter, "Expected plain 'cnfnec' to still be corrected after the dotted form was cached");
 
             Console.WriteLine("✓ Cache keeps boundary contexts apart");
+        }
+
+        /// <summary>
+        /// A user word must do two things, not one: protect the word as typed, and let the
+        /// mistyped form be recognised and corrected. The old ignore-list only did the first.
+        /// </summary>
+        private void TestUserWordsExtendTheDictionary()
+        {
+            // "виверт" немає у вбудованому словнику; латиницею це "dbdthn"
+            const string ukrainianWord = "виверт";
+            const string mistyped = "dbdthn";
+
+            KeyMapper.SetUserWords(new string[0]);
+            bool protectedBefore = !KeyMapper.IsWrongLayout(ukrainianWord, isEnglishLayout: false, settings);
+
+            KeyMapper.SetUserWords(new[] { ukrainianWord });
+
+            Assert(!KeyMapper.IsWrongLayout(ukrainianWord, isEnglishLayout: false, settings),
+                $"Expected '{ukrainianWord}' to be protected once added");
+            Assert(KeyMapper.IsWrongLayout(mistyped, isEnglishLayout: true, settings),
+                $"Expected '{mistyped}' to be recognised as '{ukrainianWord}' typed in the wrong layout");
+
+            // Латинське слово має потрапляти в англійський набір, а не в український.
+            KeyMapper.SetUserWords(new[] { "zzyzx" });
+            Assert(!KeyMapper.IsWrongLayout("zzyzx", isEnglishLayout: true, settings),
+                "Expected a Latin user word to be protected in the English layout");
+
+            KeyMapper.SetUserWords(new string[0]);
+            Console.WriteLine($"✓ User words extend the dictionary (protected before adding: {protectedBefore})");
         }
 
         private void TestRestoresMissingApostrophe()
@@ -267,44 +297,43 @@ namespace KeyboardLayoutSwitcher.Tests
             Console.WriteLine("✓ Character conversion works (Ukrainian→English)");
         }
 
-        private void TestIgnoredWords()
+        /// <summary>
+        /// A user word protects the text as typed, the way the old ignore list did.
+        /// </summary>
+        private void TestUserWordProtectsTheTypedForm()
         {
-            // Use a fresh word (never checked before in this process) and register it
-            // as ignored BEFORE the first lookup. IsWrongLayout caches its result per
-            // word+layout, so checking an already-cached word here would pass for the
-            // wrong reason (stale cache) instead of exercising the ignore-list branch.
             const string englishWord = "docker"; // hardcoded in commonEnglishWords
             string garbled = KeyMapper.ConvertWord(englishWord, isEnglishLayout: true);
 
-            settings.IgnoredWordsText = garbled;
+            KeyMapper.SetUserWords(new[] { garbled });
 
             bool result = KeyMapper.IsWrongLayout(garbled, isEnglishLayout: false, settings);
-            Assert(!result, $"Expected ignored word '{garbled}' to be skipped");
-            Console.WriteLine("✓ Ignored words list works");
+            Assert(!result, $"Expected user word '{garbled}' to be left alone");
+
+            KeyMapper.SetUserWords(new string[0]);
+            Console.WriteLine("✓ A user word protects the word as typed");
         }
 
-        private void TestClearCacheInvalidatesStaleIgnoredWord()
+        /// <summary>
+        /// The list can change while verdicts are already cached, so SetUserWords must drop
+        /// the cache itself — otherwise a word added now would keep being corrected until
+        /// the app restarts.
+        /// </summary>
+        private void TestUserWordsInvalidateStaleCache()
         {
-            // Reproduces the scenario ClearCache() exists for: a word gets auto-corrected
-            // once (and cached), the user then adds it to the ignore list, and the app must
-            // stop auto-correcting it without requiring a restart.
             const string englishWord = "react"; // hardcoded in commonEnglishWords, unused elsewhere
             string garbled = KeyMapper.ConvertWord(englishWord, isEnglishLayout: true);
 
-            settings.IgnoredWordsText = string.Empty;
-            bool beforeIgnoring = KeyMapper.IsWrongLayout(garbled, isEnglishLayout: false, settings);
-            Assert(beforeIgnoring, $"Expected '{garbled}' to be flagged as wrong layout before being ignored");
+            KeyMapper.SetUserWords(new string[0]);
+            bool beforeAdding = KeyMapper.IsWrongLayout(garbled, isEnglishLayout: false, settings);
+            Assert(beforeAdding, $"Expected '{garbled}' to be flagged as wrong layout before being added");
 
-            // Simulate the user adding the word to the ignore list after it was already cached.
-            settings.IgnoredWordsText = garbled;
-            bool staleResult = KeyMapper.IsWrongLayout(garbled, isEnglishLayout: false, settings);
-            Assert(staleResult, $"Expected stale cache to still report '{garbled}' as wrong layout before ClearCache()");
+            KeyMapper.SetUserWords(new[] { garbled });
+            bool afterAdding = KeyMapper.IsWrongLayout(garbled, isEnglishLayout: false, settings);
+            Assert(!afterAdding, $"Expected '{garbled}' to be left alone right after being added, without a restart");
 
-            KeyMapper.ClearCache();
-            bool freshResult = KeyMapper.IsWrongLayout(garbled, isEnglishLayout: false, settings);
-            Assert(!freshResult, $"Expected '{garbled}' to be skipped after ClearCache() re-evaluates the ignore list");
-
-            Console.WriteLine("✓ ClearCache invalidates stale ignore-list results");
+            KeyMapper.SetUserWords(new string[0]);
+            Console.WriteLine("✓ Changing user words invalidates cached verdicts");
         }
 
         private void TestMixedLayout()

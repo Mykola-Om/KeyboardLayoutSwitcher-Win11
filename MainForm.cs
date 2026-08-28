@@ -440,7 +440,8 @@ namespace KeyboardLayoutSwitcher
             txtSkipEnterProcesses.Text = settings.SkipEnterCorrectionProcessesText;
             cmbProcessMode.SelectedIndex = (int)settings.ProcessFilterMode;
             PopulateListFromText(lstProcesses, settings.ProcessFilterText);
-            PopulateListFromText(lstIgnoredWords, settings.IgnoredWordsText);
+            PopulateListFromText(lstIgnoredWords, settings.UserWordsText);
+            KeyMapper.SetUserWords(settings.UserWords);
             numMinimumMappedPercent.Value = Clamp(numMinimumMappedPercent, settings.MinimumMappedPercent);
 
             settings.StartWithWindows = chkStartWithWindows.Checked;
@@ -448,7 +449,7 @@ namespace KeyboardLayoutSwitcher
         }
 
         // Наповнює ListBox рядками з тексту, розбитого за AppSettings.ListDelimiters —
-        // тим самим набором, яким AppSettings.ProcessNames/IgnoredWords парсять цей текст,
+        // тим самим набором, яким AppSettings.ProcessNames/UserWords парсять цей текст,
         // щоб UI і збережені налаштування завжди розуміли роздільники однаково.
         private static void PopulateListFromText(ListBox list, string text)
         {
@@ -482,10 +483,13 @@ namespace KeyboardLayoutSwitcher
             settings.SkipEnterCorrectionProcessesText = txtSkipEnterProcesses.Text;
             if (cmbProcessMode.SelectedIndex >= 0) settings.ProcessFilterMode = (ProcessFilterMode)cmbProcessMode.SelectedIndex;
             settings.ProcessFilterText = JoinListItems(lstProcesses);
-            settings.IgnoredWordsText = JoinListItems(lstIgnoredWords);
+            settings.UserWordsText = JoinListItems(lstIgnoredWords);
             settings.MinimumMappedPercent = (int)numMinimumMappedPercent.Value;
 
-            // IgnoredWords/MinimumMappedPercent affect KeyMapper's heuristic, but its cache
+            // Слова користувача доповнюють словник, тож їх треба передати до KeyMapper.
+            KeyMapper.SetUserWords(settings.UserWords);
+
+            // UserWords/MinimumMappedPercent affect KeyMapper's heuristic, but its cache
             // is keyed only by word+layout, so stale entries from before this change must
             // be dropped or they'd keep returning the old verdict until evicted.
             KeyMapper.ClearCache();
